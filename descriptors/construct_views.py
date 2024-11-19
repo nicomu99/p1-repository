@@ -1,159 +1,72 @@
 from tqdm import tqdm
-
-# from utils.file_utils import o3d_meshes, read_pcd_pointclouds_poisson
 import numpy as np
 
-from view_generation.geometric_parameters import convex_hull_vs_grid, ratio_bounding_convex_hull, \
-    fibonacci_unit_sphere, gaussian_histogram, shell_histogram, sector_histogram
-from view_generation.pca_based import pca_attributes
-from view_generation.pcl_descriptors import esf_descriptor, pfh_global_radius
+from descriptors.view_generation.geometric_parameters import convex_hull_vs_grid, ratio_bounding_convex_hull
+from descriptors.view_generation.projection_based import varimax_projections_2d, samp
+from descriptors.view_generation.pca_based import pca_attributes
 
 
 class Views:
     def __init__(self, data_object):
-        self.dataset_name = data_object.dataset_name  # dataset_name
-        self.number_of_sampled_points = data_object.number_of_sampled_points
-        self.view_path = data_object.view_path
+        self.dataset_name = data_object['dataset_name']  # dataset_name
+        # self.number_of_sampled_points = data_object.number_of_sampled_points
 
-        self.data_object = data_object
+        self.data = data_object['point_clouds']
+        self.labels = data_object['labels']
 
-        # histograms
-        self.esfs = None
-        self.global_pfhs = None
-        self.gauss = None
-        self.shells = None
-        self.sectors = None
+        self.evrap = None
+        self.samp = None
+        self.scomp = None
+        self.sirm = None
 
-        # 3-dim
-        self.pca_explained_variance_ratios = None
-
-        # 1-dim
-        self.n_segments_for_samp = data_object.n_segments_for_samp
-        self.samp = []
-
-        self.n_grids_for_grid_vs_convex_hull = data_object.n_grids_for_grid_vs_convex_hull
-        self.convex_hull_vs_grid = []
-
-        self.ratio_bounding_volume_convex_hull = None
-
-        self.prefix = self.view_path + self.dataset_name + '_' + str(self.number_of_sampled_points) \
-                      + '_'
+        self.prefix = self.dataset_name + '/'
 
     def read_in_views(self):
+        try:
+            self.evrap = np.load(self.prefix + 'evrap.npy')
+        except FileNotFoundError:
+            print('File for EVRAP.')
 
         try:
-            self.esfs = np.load(self.prefix + 'esf_histograms.npy')
+            self.sirm = np.load(self.prefix + 'sirm.npy')
         except FileNotFoundError:
-            print('File for ESF histograms not found.')
+            print('File for SIRM.')
 
         try:
-            self.global_pfhs = np.load(self.prefix + 'pfh_histograms.npy')
+            self.samp = np.load(self.prefix + 'samp.npy')
         except FileNotFoundError:
-            print('File for PFH histograms not found.')
+            print('File for SAMP not found.')
 
         try:
-            self.pca_explained_variance_ratios = np.load(
-                self.prefix + 'pca_explained_variance_ratio.npy')
+            self.scomp = np.load(self.prefix + 'scomp.npy')
         except FileNotFoundError:
-            print('File for PCA explained variance ratio not found.')
+            print('File for SCOMP not found.')
 
-        try:
-            self.ratio_bounding_volume_convex_hull = np.load(
-                self.prefix + 'ratio_bounding_volume_convex_hull.npy')
-        except FileNotFoundError:
-            print('File for Ratio Bounding Volume vs Convex Hull not found.')
+    def generate_all_descriptors(self):
+        self.generate_and_save_evrap()
+        self.generate_and_save_scomp()
+        self.generate_and_save_sirm()
+        self.generate_and_save_samp()
 
-        try:
-            self.sectors = np.load(
-                self.prefix + 'sector_histograms_' + str(self.data_object.n_sectors) + '.npy')
-        except FileNotFoundError:
-            print('File for Sector Histogram not found.')
+    def generate_and_save_evrap(self):
+        _, _, explained_var_ratio = pca_attributes([np.asarray(self.data[i,:]) for i in range(len(self.data))])
+        np.save(self.prefix + 'evrap.npy', explained_var_ratio)
 
-        self.samp = []
-        for n in self.n_segments_for_samp:
-            file = self.prefix + 'samp_min_max_normed_scaled_' + str(n) + '.npy'
-            try:
-                self.samp.append(np.load(file))
-            except FileNotFoundError:
-                print('No SAMP file found:', file)
+    def generate_and_save_scomp(self):
+        varimax_projection = varimax_projections_2d([np.asarray(self.data[i, :]) for i in range(len(self.data))])
+        convex_hull_vs_grid_res, _ = convex_hull_vs_grid(varimax_projection, number_of_bins=20, draw=2)
+        np.save(self.prefix + 'scomp.npy', convex_hull_vs_grid_res)
 
-        self.convex_hull_vs_grid = []
-        for n in self.data_object.n_grids_for_grid_vs_convex_hull:
-            file = self.prefix + 'convex_hull_vs_grid_' + str(n) + '.npy'
-            try:
-                self.convex_hull_vs_grid.append(np.load(file))
-            except FileNotFoundError:
-                print('No Convex Hull vs. Grid file found:', file)
+    def generate_and_save_sirm(self):
+        _, sirm_data = ratio_bounding_convex_hull(
+            varimax_projections_2d(self.data), draw=False
+        )
+        np.save(self.prefix + 'sirm.npy', sirm_data)
 
-        self.gauss = []
-        for n in self.data_object.n_points_on_sphere_for_gauss:
-            file = self.prefix + 'gauss_histogram_' + str(n) + '.npy'
-            try:
-                self.gauss.append(np.load(file))
-            except FileNotFoundError:
-                print('No Gauss histogram file found:', file)
+    def generate_and_save_samp(self):
+        samp_data = samp(self.data)
+        np.save(self.prefix, 'data.npy', samp_data)
 
-        self.shells = []
-        for n in self.data_object.n_shells:
-            file = self.prefix + 'shell_histogram_' + str(n) + '.npy'
-            try:
-                self.shells.append(np.load(file))
-            except FileNotFoundError:
-                print('No Shell histogram file found:', file)
-
-    def generate_and_save_esf(self):
-        esf_histograms = [esf_descriptor(pc) for pc in self.data_object.pcl_pointclouds]
-        np.save(self.prefix + 'esf_histograms', esf_histograms)
-
-    def generate_and_save_global_pfh_with_external_normals(self):
-        if not self.data_object.normals_as_arrays:
-            print('Cannot compute pfh without normals.')
-            return
-        print('Compute PFH histograms...')
-        pfh_histograms = [pfh_global_radius(pc, prec_normals=np.asarray(
-            self.data_object.o3d_pointclouds[i].normals)) for i, pc in tqdm(enumerate(
-            self.data_object.pcl_pointclouds))]
-        np.save(self.prefix + 'pfh_histograms', pfh_histograms)
-
-    def generate_and_save_pca_explained_variance(self):
-        pca_singular_values, pca_explained_variance, pca_explained_variance_ratio = pca_attributes(
-            [np.asarray(pcd.points) for pcd in self.data_object.o3d_pointclouds])
-        np.save(self.prefix + 'pca_explained_variance_ratio', pca_explained_variance_ratio)
-
-    def generate_and_save_grid_vs_convex_hull(self):
-        for n in self.data_object.n_grids_for_grid_vs_convex_hull:
-            convex_hull_vs_grid_res, _ = convex_hull_vs_grid(
-                self.data_object.varimax_projections_2d, number_of_bins=n, draw=2)
-            np.save(self.prefix + 'convex_hull_vs_grid_' + str(n), convex_hull_vs_grid_res)
-
-    def generate_and_save_ratio_bounding_volume_convex_hull(self):
-        ratio_bounding_area_convex_hull_res, ratio_bounding_volume_convex_hull_res = \
-            ratio_bounding_convex_hull(
-            self.data_object.varimax_projections_2d, draw=True)
-        np.save(self.prefix + 'ratio_bounding_volume_convex_hull',
-                ratio_bounding_volume_convex_hull_res)
-
-    def generate_and_save_gauss_histogram(self):
-        print('Generate and save Gauss histograms...')
-        for n in self.data_object.n_points_on_sphere_for_gauss:
-            sphere = np.array(fibonacci_unit_sphere(n))
-            gauss_histograms = [gaussian_histogram(
-                pc.points, self.data_object.normals_as_arrays[i], sphere) for i, pc in tqdm(
-                enumerate(self.data_object.o3d_pointclouds))]
-            np.save(self.prefix + 'gauss_histogram_' + str(n), gauss_histograms)
-
-    def generate_and_save_shell_histogram(self):
-        for n in self.data_object.n_shells:
-            shell_histograms = [shell_histogram(pc.points, n) for i, pc in
-                                tqdm(enumerate(self.data_object.o3d_pointclouds))]
-            np.save(self.prefix + 'shell_histogram_' + str(n), shell_histograms)
-
-    def generate_and_save_sector(self):
-        print('Generate and save sector histograms...')
-        sector_histograms = [sector_histogram(np.asarray(pc.points), self.data_object.n_sectors)
-                             for pc in tqdm(self.data_object.o3d_pointclouds)]
-        np.save(self.prefix + 'sector_histograms_' + str(self.data_object.n_sectors),
-                sector_histograms)
 
 class Mvsc3dData:
     def __init__(self,
@@ -261,8 +174,8 @@ class Mvsc3dData:
         self.views.read_in_views()
         #print('Views Read')
         views = {'ESF': self.views.esfs, 'Global PFH': np.squeeze(self.views.global_pfhs),
-                 'Explained Variance Ratio of PCA': self.views.pca_explained_variance_ratios,
-                 'Ratio Bounding Volume Convex Hull': self.views.ratio_bounding_volume_convex_hull,
+                 'Explained Variance Ratio of PCA': self.views.evrap,
+                 'Ratio Bounding Volume Convex Hull': self.views.sirm,
                  'Sector Histograms': self.views.sectors,
                  'SAMP': {},
                  'Grid vs. Convex Hull': {},
@@ -272,7 +185,7 @@ class Mvsc3dData:
         for i, n in enumerate(self.n_segments_for_samp):
             views['SAMP']['N Segments ' + str(n)] = self.views.samp[i]
         for i, n in enumerate(self.n_grids_for_grid_vs_convex_hull):
-            views['Grid vs. Convex Hull']['N Grids ' + str(n)] = self.views.convex_hull_vs_grid[i]
+            views['Grid vs. Convex Hull']['N Grids ' + str(n)] = self.views.scomp[i]
         try:
             for i, n in enumerate(self.n_points_on_sphere_for_gauss):
                 views['Gauss Maps']['N Points On Sphere ' + str(n)] = self.views.gauss[i]

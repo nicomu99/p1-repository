@@ -1,6 +1,8 @@
 import numpy as np
 from sklearn.decomposition import PCA, FactorAnalysis
+from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 
 def pca_projections_2d(data_3d):
@@ -23,143 +25,137 @@ def varimax_projections_2d(data_3d, get_1st_and_3rd_component=False):
     return projections_2d
 
 
-def asymmetries_x_axis(projections_2d, title, draw=True, stepsize=2, tolerance_percentage=0):
+def asymmetries_x_axis(projections_2d, n_segments=20, considered_percentage=0.05):
+    normalized_projections = []
+    min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
+    for unnormalized_projection in projections_2d:
+        normalized = min_max_scaler.fit_transform(np.array(unnormalized_projection))
+        normalized_projections.append(normalized)
+
     asymmetries = []
-    tolerance = stepsize / 2
+    asymmetries_single_values = []
 
-    if draw:
-        fig, axs = plt.subplots(len(projections_2d), 2, figsize=(8, 4 * len(projections_2d) / 3))
-
-    for i, projection in enumerate(projections_2d):
-
-        x_range_min, x_range_max = (min(projection[:, 0]), max(projection[:, 0]))
-
-        if draw:
-            axs[i][0].scatter(projections_2d[i][:, 0], projections_2d[i][:, 1], marker='.', alpha=0.01,
-                              c='black')
-
+    for i, projection in enumerate(tqdm(normalized_projections)):
         asymmetry = 0
         asymmetry_values = []
 
-        for step in np.arange(x_range_min, x_range_max, stepsize):
+        segments = np.linspace(min(projection[:, 0]), max(projection[:, 0]), n_segments, endpoint=True)
+
+        for j, step in enumerate(segments[0:-1]):
+            min_x_area = step
+            max_x_area = segments[j + 1]
             points_in_area = np.array(
-                [[x, y] for x, y in projections_2d[i] if step - tolerance <= x < step + tolerance])
+                [[x, y] for x, y in normalized_projections[i] if min_x_area <= x < max_x_area])
 
-            if len(points_in_area) is not 0:
-                if draw:
-                    axs[i][0].scatter(points_in_area[:, 0], points_in_area[:, 1], marker='.', alpha=0.01,
-                                      color='yellow')
-                number_of_considered_values = round(
-                    len(points_in_area) * tolerance_percentage) if tolerance_percentage is not 0 else 1
-
-                if tolerance_percentage is 0 or number_of_considered_values == 0:
+            number_of_considered_values = int(round(len(points_in_area) * considered_percentage))
+            if len(points_in_area) != 0:
+                if number_of_considered_values == 0:
                     maximum = max(points_in_area[:, 1])
                 else:
-                    maximum = np.mean(
-                        points_in_area[np.argpartition(points_in_area[:, 1], -number_of_considered_values)[
-                                       -number_of_considered_values:]][:, 1])
+                    maximum = np.median(
+                        points_in_area[
+                            np.argpartition(points_in_area[:, 1], -number_of_considered_values)[
+                            -number_of_considered_values:]][:, 1])
 
-                if tolerance_percentage is 0 or number_of_considered_values == 0:
+                if number_of_considered_values == 0:
                     minimum = min(points_in_area[:, 1])
                 else:
-                    minimum = np.mean(
-                        points_in_area[np.argpartition(points_in_area[:, 1], number_of_considered_values)[
-                                       :number_of_considered_values]][:, 1])
+                    try:
+                        minimum = np.median(
+                            points_in_area[
+                                np.argpartition(points_in_area[:, 1], number_of_considered_values)[
+                                :number_of_considered_values]][:, 1])
 
-                if minimum == maximum:
-                    asymmetry_value = maximum + minimum
-                if np.sign(maximum) == 1 and np.sign(minimum) == -1:
-                    asymmetry_value = abs(maximum + minimum) * 2
-                if np.sign(maximum) == 1 and np.sign(minimum) == 1:
-                    asymmetry_value = maximum + minimum
-                if np.sign(maximum) == -1 and np.sign(minimum) == -1:
-                    asymmetry_value = abs(maximum) + abs(minimum)
-                if minimum > maximum:
-                    print('higher min than max --> choose smaller tolerance percentage')
-                    asymmetry_value = 10
+                    except ValueError:
+                        print('points in area ', points_in_area[:, 1])
+                        print('number of considered values', number_of_considered_values)
+                        pass
 
+                asymmetry_value = abs(maximum + minimum)
                 asymmetry = asymmetry + asymmetry_value
 
-                if draw:
-                    axs[i][0].scatter(step, maximum, marker='.', color='green')
-                    axs[i][0].scatter(step, minimum, marker='.', color='red')
-
-                asymmetry_values.append(asymmetry_value)
-        if draw:
-            axs[i][1].plot(asymmetry_values)
+        asymmetries_single_values.append(asymmetry_values)
         asymmetries.append(asymmetry)
-    if draw:
-        fig.suptitle(title)
-        fig.subplots_adjust(top=0.95)
-    return asymmetries
+    return asymmetries, asymmetries_single_values
 
 
-def asymmetries_y_axis(projections_2d, title, draw=True, stepsize=2):
+def asymmetries_y_axis(projections_2d, n_segments=20, considered_percentage=0.05):
+    # normalize the points
+    normalized_projections = []
+    min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
+    for unnormalized_projection in projections_2d:
+        normalized_projections.append(
+            min_max_scaler.fit_transform(np.array(unnormalized_projection)))
+
     asymmetries_2nd_PC = []
-    tolerance = stepsize / 2
+    asymmetries_single_values = []
 
-    if draw:
-        fig, axs = plt.subplots(len(projections_2d), 2, figsize=(8, 4 * len(projections_2d) / 3))
-
-    for i, projection in enumerate(projections_2d):
-
-        y_range_min, y_range_max = (min(projection[:, 1]), max(projection[:, 1]))
-
-        if draw:
-            axs[i][0].scatter(projections_2d[i][:, 0], projections_2d[i][:, 1], marker='.', alpha=0.01,
-                              c='black')
-
+    for i, projection in enumerate(tqdm(normalized_projections)):
         asymmetry_y = 0
         asymmetry_values_y = []
+        segments = np.linspace(min(projection[:, 1]), max(projection[:, 1]), n_segments,
+                               endpoint=True)
+        tolerance = abs(segments[0] - segments[1]) / 2
 
-        for step in np.arange(y_range_min, y_range_max, stepsize):
+        for j, step in enumerate(segments[0:-1]):
+            min_y_area = step
+            max_y_area = segments[j + 1]
             points_in_area = np.array(
-                [[x, y] for x, y in projections_2d[i] if y > step - tolerance and y < step + tolerance])
-
-            # print(points_in_area)
-            if draw and len(points_in_area) != 0:
-                axs[i][0].scatter(points_in_area[:, 0], points_in_area[:, 1],
-                                  marker='.', alpha=0.01, color='yellow')
+                [[x, y] for x, y in normalized_projections[i] if min_y_area <= y < max_y_area])
 
             if len(points_in_area) != 0:
-                maximum_y = max(points_in_area[:, 0])
-                minimum_y = min(points_in_area[:, 0])
+                number_of_considered_values = int(
+                    round(len(points_in_area) * considered_percentage))
+                maximum_y = np.median(
+                    points_in_area[
+                        np.argpartition(points_in_area[:, 0], -number_of_considered_values)
+                        [-number_of_considered_values:]][:, 0])
+                minimum_y = np.median(
+                    points_in_area[
+                        np.argpartition(points_in_area[:, 0], number_of_considered_values)
+                        [:number_of_considered_values]][:, 0])
 
-            if len(points_in_area) is not 0:
+                asymmetry_value_y = abs(maximum_y + minimum_y)
 
-                if minimum_y == maximum_y:
-                    asymmetry_value_y = maximum_y + minimum_y
-                if np.sign(maximum_y) == 1 and np.sign(minimum_y) == -1:
-                    asymmetry_value_y = abs(maximum_y + minimum_y) * 2
-                if np.sign(maximum_y) == 1 and np.sign(minimum_y) == 1:
-                    asymmetry_value_y = maximum_y + minimum_y
-                if np.sign(maximum_y) == -1 and np.sign(minimum_y) == -1:
-                    asymmetry_value_y = abs(maximum_y) + abs(minimum_y)
                 asymmetry_y = asymmetry_y + asymmetry_value_y
-
-                if draw: axs[i][0].scatter(maximum_y, step, marker='.', color='green')
-                if draw: axs[i][0].scatter(minimum_y, step, marker='.', color='red')
-
                 asymmetry_values_y.append(asymmetry_value_y)
-
-        if draw and len(asymmetry_values_y) != 0:
-            axs[i][1].plot(asymmetry_values_y)
         asymmetries_2nd_PC.append(asymmetry_y)
+        asymmetries_single_values.append(asymmetry_values_y)
 
-    if draw:
-        fig.suptitle(title)
-        fig.subplots_adjust(top=0.95)
-
-    return asymmetries_2nd_PC
+    return asymmetries_2nd_PC, asymmetries_single_values
 
 
 def min_max_asymmetries(asymmetries_of_projections_1st_axis, asymmetries_of_projections_2nd_axis):
-    min_asymmetry = [min(x, y) for x, y in
-                                    zip(asymmetries_of_projections_1st_axis, asymmetries_of_projections_2nd_axis)]
-    max_asymmetry = [max(x, y) for x, y in
-                                    zip(asymmetries_of_projections_1st_axis, asymmetries_of_projections_2nd_axis)]
+    min_asymmetries = [min(x, y) for x, y in
+                       zip(asymmetries_of_projections_1st_axis,
+                           asymmetries_of_projections_2nd_axis)]
+    max_asymmetries = [max(x, y) for x, y in
+                       zip(asymmetries_of_projections_1st_axis,
+                           asymmetries_of_projections_2nd_axis)]
 
-    return list(zip(min_asymmetry, max_asymmetry))
+    return list(zip(min_asymmetries, max_asymmetries))
+
+
+def samp_on_point_cloud(point_cloud):
+    asymmetry_x = asymmetries_x_axis(point_cloud, "", False)
+    asymmetry_y = asymmetries_y_axis(point_cloud, "", )
+
+    return [min(asymmetry_x, asymmetry_y), max(asymmetry_x, asymmetry_y)]
+
+
+def samp(point_clouds):
+    asymmetries = []
+    for point_cloud in point_clouds:
+        asymmetries.append(samp_on_point_cloud(point_cloud))
+    asymmetries = np.array(asymmetries)
+
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled_asymmetries_x = scaler.fit_transform(asymmetries[:, 0]).reshape(-1, 1)
+
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled_asymmetries_y = scaler.fit_transform(asymmetries[:, 1]).reshape(-1, 1)
+
+    return min_max_asymmetries(scaled_asymmetries_x, scaled_asymmetries_y)
 
 
 def simple_rectangularity(projected_points_2d, n_bins=20):

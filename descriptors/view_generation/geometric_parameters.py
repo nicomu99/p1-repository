@@ -1,6 +1,6 @@
 import math
 
-import open3d as o3d
+# import open3d as o3d
 from scipy.spatial import ConvexHull, distance
 import numpy as np
 from sklearn.neighbors._kd_tree import KDTree
@@ -18,7 +18,8 @@ def bins_stat(x, y, number_of_bins):
     binx = np.linspace(xmin, xmax, number_of_bins)
     biny = np.linspace(ymin, ymax, number_of_bins)
     # size = euclidean(binx[0],binx[1])**2
-    size = euclidean(binx[0], binx[1]) * euclidean(biny[0], biny[1])
+    print(binx)
+    size = euclidean([binx[0]], [binx[1]]) * euclidean([biny[0]], [biny[1]])
     # print('x: ',euclidean(binx[0],binx[1]))
     # print('y: ',euclidean(biny[0], biny[1]))
 
@@ -129,7 +130,7 @@ def convex_hull_vs_grid(projections, number_of_bins=30, draw=5, drawe=True):
     #fig, axs = plt.subplots(draw, 2, figsize=(100, 50*draw))
 
     for i, projection in enumerate(projections):
-        size, bins, binx, biny = bins_stat(projection[:, 0], projection[:, 1],
+        size, bins, binx, biny = bins_stat(projection[:, 0].reshape(-1, 1), projection[:, 1].reshape(-1, 1),
                                            number_of_bins=number_of_bins)
         bins = bins.statistic
         bins = [item for sublist in bins for item in sublist]
@@ -167,94 +168,6 @@ def convex_hull_vs_grid(projections, number_of_bins=30, draw=5, drawe=True):
         #    axs[i][1].set_xticks([1,2])
         #    axs[i][1].set_xticklabels(['Convex Hull', 'Bins with Points'], size=15)
     return convex_hull_vs_grid, no_points_in_grid
-
-
-def gaussian_histogram(points, normals, uniformely_sampled_points_on_sphere):
-    _, aligned_normals = align_point_normals_with_principal_components(points, normals)
-
-    # alternative to NN-query: Dot product between rotated normals and points on sphere?
-    # -> Smallest angle. Faster?
-    kdtree = KDTree(uniformely_sampled_points_on_sphere)
-    histogram = np.zeros(len(uniformely_sampled_points_on_sphere))
-    for normal in aligned_normals:
-        x, y, z = normal
-        d, i = kdtree.query([[x, y, z]])
-        #print(i)
-        histogram[i] = histogram[i] + 1
-    return histogram / len(aligned_normals)
-
-
-def shell_histogram(points, n_shells):
-    lower = np.min(points, axis=0)  # lower left corner of bounding box
-    upper = np.max(points, axis=0)  # upper right corner of bounding box
-
-    centroid = np.array(points).mean(axis=0)
-    #print(centroid)
-    # c = pcl.vectors.Float([centroid[0], centroid[1], centroid[2]])
-    centered_points = points - centroid
-
-    max_r = distance.euclidean(lower, upper) / 2
-    shell_segments = np.linspace(0,max_r, n_shells)
-    #print(shell_segments)
-    histogram = np.zeros(len(shell_segments)-1)
-
-    for i,_ in enumerate(shell_segments[:-1]):
-        min = shell_segments[i]
-        max = shell_segments[i+1]
-        for point in centered_points:
-            if min <= distance.euclidean([0,0,0], point) < max:
-                histogram[i] = histogram[i] + 1
-    histogram = histogram / len(points)
-    return histogram
-
-
-def sector_histogram(points, n_sectors):
-    #print(np.array(points))
-
-    # align with components
-    pca = PCA(n_components=3).fit(points)
-    rotated_points = pca.transform(points)
-    points = rotated_points
-    #print(points)
-
-    centroid = np.array(points).mean(axis=0)
-    centered_points = points - centroid
-    #print(centered_points)
-    sectors = np.array(fibonacci_unit_sphere(n_sectors))
-    #print(sectors)
-    # dot product of each point with fib, take min
-    distances = np.dot(rotated_points, sectors.T)
-    closest_per_point = np.argmax(distances, 1)
-    #print('----closest---')
-    #print(closest_per_point)
-
-    #print('---bincount---')
-    #print(np.bincount(closest_per_point))
-
-    histogram = np.bincount(closest_per_point, minlength=len(sectors)) / len(points)
-    #print(histogram)
-    return histogram
-    #print(distances)
-
-    #print('----hist---')
-    #print(histogram)
-    #sorted = np.sort(histogram)[::-1]
-    ##print('----hist sort')
-    ##print(sorted)
-    #return sorted
-
-
-#def extended_gaussian_histogram(Points, Normals, uniformely_sampled_points_on_sphere):
-#    S = uniformely_sampled_points_on_sphere.shape[1]
-#    hist = np.zeros(S)
-#    _, rotated = align_point_normals_with_principal_components(Points, Normals)
-#    D = np.dot(np.array(rotated), np.array(uniformely_sampled_points_on_sphere).T) # N x M
-#    print(D)
-#    nearest = np.argmax(D, 1) # for each normal, the index of nearest spherical direction
-#    count = np.bincount(nearest) # number of normals associated with each direction
-#    print(count)
-#    hist[:count.shape[0]] = count
-#    return hist
 
 def align_point_normals_with_principal_components(points, normals):
     #A = np.dot(points, points.T)
@@ -294,20 +207,3 @@ def fibonacci_unit_sphere_variation(samples=50):
     phi = np.arccos(1 - 2 * (i + 0.5) / n)
     x, y, z = np.cos(theta) * np.sin(phi), np.sin(theta) * np.sin(phi), np.cos(phi);
     return np.array(list(zip(x, y, z)))
-
-#varimax_projections_2d = np.load(
-#    '../generated/modelnet10/modelnet10_varimax_1st_2nd_poisson_10000.npy')
-
-#ratio_bounding_area_convex_hull_res, ratio_bounding_volume_convex_hull_res = ratio_bounding_convex_hull(
-#    varimax_projections_2d)
-#p = sphere_points = fibonacci_unit_sphere(4)
-#h = shell_histogram(p, 5)
-#print(h)
-
-#pc = extended_gaussian_histogram(np.array([[0,1,1], [0,2,2]]), np.array([[0.2,0.3,0.5],[0.5,0.3,0.2]]), np.array([[0,0,0]]))
-#pc = [[1,1,1], [3,3,3], [10,10,10]] # [0,1,1], [0,2,2],
-#sector_histogram(pc, 3)
-
-#print(fibonacci_unit_sphere(5))
-#print('---')
-#print(fibonacci_unit_sphere_variation(5))
