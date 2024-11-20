@@ -1,6 +1,7 @@
 # Added by user
 mesh_files/
 mesh_files_new/
+point_clouds/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
