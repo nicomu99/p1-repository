@@ -1,9 +1,10 @@
+import math
+
 import numpy as np
 from sklearn.decomposition import FactorAnalysis
 from scipy.spatial import ConvexHull
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler
-
 
 class DescriptorWrapper:
     @staticmethod
@@ -21,7 +22,7 @@ class DescriptorWrapper:
     @staticmethod
     def compute_evrap(point_cloud):
         # This function contains the EVRAP descriptor as defined in the thesis, i.e. a PCA with 3 components
-        pca = PCA(n_components=3)
+        pca = PCA(n_components=3, random_state=0)
         pca.fit(point_cloud)
         return pca.explained_variance_ratio_
 
@@ -42,8 +43,15 @@ class DescriptorWrapper:
 
                 if len(segment_points) > 0:
                     other_axis = 1 - axis
-                    max_value = np.median(np.sort(segment_points[:, other_axis])[-int(0.05 * len(segment_points)):])
-                    min_value = np.median(np.sort(segment_points[:, other_axis])[:int(0.05 * len(segment_points))])
+                    if len(np.sort(segment_points[:, other_axis])[-int(0.05 * len(segment_points)):]) > 0:
+                        max_value = np.median(np.sort(segment_points[:, other_axis])[-int(0.05 * len(segment_points)):])
+                    else:
+                        max_value = 0
+                    if len(np.sort(segment_points[:, other_axis])[:int(0.05 * len(segment_points))]) > 0:
+                        min_value = np.median(np.sort(segment_points[:, other_axis])[:int(0.05 * len(segment_points))])
+                    else:
+                        min_value = 0
+
                     asymmetry_sum += abs(max_value - min_value)
 
             asymmetry_values.append(asymmetry_sum)
@@ -93,110 +101,90 @@ class DescriptorWrapper:
 
         return ratio
 
-    def asymmetries_x_axis(self, point_cloud, stepsize=20, tolerance_percentage=0):
-        scaled_pc = self.varimax_projection_with_scaling(point_cloud)
-        tolerance = stepsize / 2
-
-        x_range_min, x_range_max = (min(scaled_pc[:, 0]), max(scaled_pc[:, 0]))
-
-        asymmetry = 0
-        for step in np.arange(x_range_min, x_range_max, stepsize):
-            points_in_area = np.array(
-                [[x, y] for x, y in scaled_pc if step - tolerance <= x < step + tolerance])
-
-            if len(points_in_area) != 0:
-                number_of_considered_values = round(
-                    len(points_in_area) * tolerance_percentage) if tolerance_percentage != 0 else 1
-
-                if tolerance_percentage == 0 or number_of_considered_values == 0:
-                    maximum = max(points_in_area[:, 1])
-                else:
-                    maximum = np.mean(
-                        points_in_area[np.argpartition(points_in_area[:, 1], -number_of_considered_values)[
-                                       -number_of_considered_values:]][:, 1])
-
-                if tolerance_percentage == 0 or number_of_considered_values == 0:
-                    minimum = min(points_in_area[:, 1])
-                else:
-                    minimum = np.mean(
-                        points_in_area[np.argpartition(points_in_area[:, 1], number_of_considered_values)[
-                                       :number_of_considered_values]][:, 1])
-
-                asymmetry_value = 0
-                if minimum == maximum:
-                    asymmetry_value = maximum + minimum
-                if np.sign(maximum) == 1 and np.sign(minimum) == -1:
-                    asymmetry_value = abs(maximum + minimum) * 2
-                if np.sign(maximum) == 1 and np.sign(minimum) == 1:
-                    asymmetry_value = maximum + minimum
-                if np.sign(maximum) == -1 and np.sign(minimum) == -1:
-                    asymmetry_value = abs(maximum) + abs(minimum)
-                if minimum > maximum:
-                    print('higher min than max --> choose smaller tolerance percentage')
-                    asymmetry_value = 10
-                asymmetry = asymmetry + asymmetry_value
-
-        return asymmetry
-
-    def asymmetries_y_axis(self, point_cloud, stepsize=2):
-        scaled_pc = self.varimax_projection_with_scaling(point_cloud)
-        tolerance = stepsize / 2
-
-        y_range_min, y_range_max = (min(scaled_pc[:, 1]), max(scaled_pc[:, 1]))
-
-        asymmetry_y = 0
-        for step in np.arange(y_range_min, y_range_max, stepsize):
-            points_in_area = np.array(
-                [[x, y] for x, y in scaled_pc if step - tolerance < y < step + tolerance])
-
-            minimum_y = 0
-            maximum_y = 0
-            if len(points_in_area) != 0:
-                maximum_y = max(points_in_area[:, 0])
-                minimum_y = min(points_in_area[:, 0])
-
-            if len(points_in_area) != 0:
-
-                asymmetry_value_y = 0
-                if minimum_y == maximum_y:
-                    asymmetry_value_y = maximum_y + minimum_y
-                if np.sign(maximum_y) == 1 and np.sign(minimum_y) == -1:
-                    asymmetry_value_y = abs(maximum_y + minimum_y) * 2
-                if np.sign(maximum_y) == 1 and np.sign(minimum_y) == 1:
-                    asymmetry_value_y = maximum_y + minimum_y
-                if np.sign(maximum_y) == -1 and np.sign(minimum_y) == -1:
-                    asymmetry_value_y = abs(maximum_y) + abs(minimum_y)
-                asymmetry_y = asymmetry_y + asymmetry_value_y
-
-        return asymmetry_y
-
-    def samp(self, point_cloud):
-        asymmetry_x =  self.asymmetries_x_axis(point_cloud)
-        asymmetry_y = self.asymmetries_y_axis(point_cloud)
-
-        return [min(asymmetry_x, asymmetry_y), max(asymmetry_x, asymmetry_y)]
-
-    def samp_on_dataset(self, point_clouds):
-        asymmetries = []
-        for point_cloud in point_clouds:
-            asymmetries.append(self.samp(point_cloud))
-        asymmetries = np.array(asymmetries)
-
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        scaled_asymmetries_x = scaler.fit_transform(asymmetries[:,0]).reshape(-1, 1)
-
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        scaled_asymmetries_y = scaler.fit_transform(asymmetries[:,1]).reshape(-1, 1)
-
-        return self.min_max_asymmetries(scaled_asymmetries_x, scaled_asymmetries_y)
-
     @staticmethod
-    def min_max_asymmetries(asymmetry_x, asymmetry_y):
-        min_asymmetries = [min(x, y) for x, y in
-                           zip(asymmetry_x,
-                               asymmetry_y)]
-        max_asymmetries = [max(x, y) for x, y in
-                           zip(asymmetry_x,
-                               asymmetry_y)]
+    def compute_esf(self, point_cloud, num_bins=60):
+        # Convert point cloud to numpy array
+        points = np.asarray(point_cloud.points)
 
-        return np.array(list(zip(min_asymmetries, max_asymmetries)))
+        # Compute pairwise distances
+        num_points = points.shape[0]
+        distances = np.linalg.norm(points[:, np.newaxis, :] - points[np.newaxis, :, :], axis=2)
+        distances = distances[np.triu_indices(num_points, k=1)]  # Upper triangular (excluding diagonal)
+
+        # 1. Histogram of distances
+        hist_d, _ = np.histogram(distances, bins=num_bins, range=(0, distances.max()), density=True)
+
+        # 2. Histogram of angles
+        angles = []
+        for i in range(num_points):
+            for j in range(i + 1, num_points):
+                for k in range(j + 1, num_points):
+                    vec_ij = points[j] - points[i]
+                    vec_ik = points[k] - points[i]
+                    cosine_angle = np.dot(vec_ij, vec_ik) / (np.linalg.norm(vec_ij) * np.linalg.norm(vec_ik) + 1e-8)
+                    angle = np.arccos(np.clip(cosine_angle, -1.0, 1.0))
+                    angles.append(angle)
+        angles = np.array(angles)
+        hist_a, _ = np.histogram(angles, bins=num_bins, range=(0, np.pi), density=True)
+
+        # 3. Histogram of distance ratios
+        distance_ratios = []
+        for i in range(num_points):
+            for j in range(i + 1, num_points):
+                for k in range(j + 1, num_points):
+                    d_ij = np.linalg.norm(points[i] - points[j])
+                    d_ik = np.linalg.norm(points[i] - points[k])
+                    ratio = d_ij / (d_ik + 1e-8)
+                    distance_ratios.append(ratio)
+        distance_ratios = np.array(distance_ratios)
+        hist_t, _ = np.histogram(distance_ratios, bins=num_bins, range=(0, distance_ratios.max()), density=True)
+
+        # Concatenate histograms to form the ESF descriptor
+        esf_descriptor = np.concatenate([hist_d, hist_a, hist_t])
+
+        return esf_descriptor
+
+    def shell_model(self, point_cloud, num_bins=12):
+        dist_to_center = np.sqrt(np.sum(point_cloud ** 2, axis=1))
+
+        bins = np.linspace(0, dist_to_center.max(), num_bins + 1)
+
+        # Compute histogram
+        histogram, _ = np.histogram(dist_to_center, bins=bins, density=False)
+
+        return histogram
+
+    def cartesian_to_spherical(self, points):
+        x, y, z = points[:, 0], points[:, 1], points[:, 2]
+        r = np.sqrt(x**2 + y**2 + z**2)
+        theta = np.arccos(z / np.maximum(r, 1e-8)) # In case of division by 0
+        phi = np.arctan2(y, x)
+
+        return r, theta, phi
+
+    def get_sector_indices(self, point_cloud, num_sectors=12):
+        r, _, phi = self.cartesian_to_spherical(point_cloud)
+        phi = np.mod(phi, 2*np.pi)
+        phi_bins = np.linspace(0, 2 * np.pi, num_sectors + 1)
+        phi_indices = np.digitize(phi, bins=phi_bins) - 1
+
+        return phi_indices
+
+    def sector_model(self, point_cloud, num_sectors=12):
+        phi_indices = self.get_sector_indices(point_cloud, num_sectors)
+        return np.bincount(phi_indices, minlength=num_sectors)
+
+    def combined_model(self, point_cloud, num_sectors=12, num_bins=6):
+        phi_indices = self.get_sector_indices(point_cloud, num_sectors)
+
+        histograms = []
+        for index in range(num_sectors):
+            sector_points = point_cloud[phi_indices == index]
+            if sector_points.shape[0] == 0:
+                histograms.append(np.zeros(num_bins))
+                continue
+
+            # Get all points in this area
+            histograms.append(self.shell_model(sector_points, num_bins=num_bins))
+
+        return np.concatenate(histograms)
