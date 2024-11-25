@@ -2,6 +2,8 @@
 mesh_files/
 mesh_files_new/
 point_clouds/
+figures/
+processed.pcd
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
