@@ -4,6 +4,7 @@ from scipy.spatial import ConvexHull
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler
 import open3d as o3d
+import samp as smp
 
 class DescriptorWrapper:
     @staticmethod
@@ -207,7 +208,8 @@ class DescriptorWrapper:
             'sector_model': self.sector_model,
             'shell_model': self.shell_model,
             'combined_model': self.combined_model,
-            'fpfh': self.compute_fpfh
+            'fpfh': self.compute_fpfh,
+            'samp': smp.compute_samp_on_dataset
         }
 
         func = model_functions[model]
