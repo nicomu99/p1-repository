@@ -1,10 +1,9 @@
-import math
-
 import numpy as np
 from sklearn.decomposition import FactorAnalysis
 from scipy.spatial import ConvexHull
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler
+import open3d as o3d
 
 class DescriptorWrapper:
     @staticmethod
@@ -156,15 +155,15 @@ class DescriptorWrapper:
 
     def cartesian_to_spherical(self, points):
         x, y, z = points[:, 0], points[:, 1], points[:, 2]
-        r = np.sqrt(x**2 + y**2 + z**2)
-        theta = np.arccos(z / np.maximum(r, 1e-8)) # In case of division by 0
+        r = np.sqrt(x ** 2 + y ** 2 + z ** 2)
+        theta = np.arccos(z / np.maximum(r, 1e-8))  # In case of division by 0
         phi = np.arctan2(y, x)
 
         return r, theta, phi
 
     def get_sector_indices(self, point_cloud, num_sectors=12):
         r, _, phi = self.cartesian_to_spherical(point_cloud)
-        phi = np.mod(phi, 2*np.pi)
+        phi = np.mod(phi, 2 * np.pi)
         phi_bins = np.linspace(0, 2 * np.pi, num_sectors + 1)
         phi_indices = np.digitize(phi, bins=phi_bins) - 1
 
@@ -188,3 +187,34 @@ class DescriptorWrapper:
             histograms.append(self.shell_model(sector_points, num_bins=num_bins))
 
         return np.concatenate(histograms)
+
+    def compute_fpfh(self, point_cloud):
+        o3d_pc = o3d.geometry.PointCloud()
+        o3d_pc.points = o3d.utility.Vector3dVector(point_cloud)
+        o3d_pc.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.05, max_nn=30))
+        fpfh = o3d.pipelines.registration.compute_fpfh_feature(
+            o3d_pc,
+            o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=100),
+        )
+        fpfh_descriptors = np.array(fpfh.data).T
+        return np.count_nonzero(fpfh_descriptors, axis=0)
+
+    def compute_model_on_dataset(self, point_clouds, model='evrap', **kwargs):
+        model_functions = {
+            'evrap': self.compute_evrap,
+            'sirm': self.sirm,
+            'scomp': self.compute_scomp,
+            'sector_model': self.sector_model,
+            'shell_model': self.shell_model,
+            'combined_model': self.combined_model,
+            'fpfh': self.compute_fpfh
+        }
+
+        func = model_functions[model]
+        if not func:
+            raise ValueError('No model function for {}'.format(model))
+
+        descriptor = []
+        for cloud in point_clouds:
+            descriptor.append(func(cloud, **kwargs))
+        return np.array(descriptor)
