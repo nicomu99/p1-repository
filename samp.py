@@ -1,8 +1,6 @@
 from sklearn.decomposition import FactorAnalysis
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
-from tqdm import tqdm
-
 
 # Written by Lisa Krombholz
 
@@ -37,7 +35,7 @@ def asymmetries_x_axis(projections_2d, n_segments=20, considered_percentage=0.05
     asymmetries = []
     asymmetries_single_values = []
 
-    for i, projection in enumerate(tqdm(normalized_projections)):
+    for i, projection in enumerate(normalized_projections):
         asymmetry = 0
         asymmetry_values = []
 
@@ -92,7 +90,7 @@ def asymmetries_y_axis(projections_2d, n_segments=20, considered_percentage=0.05
     asymmetries_2nd_PC = []
     asymmetries_single_values = []
 
-    for i, projection in enumerate(tqdm(normalized_projections)):
+    for i, projection in enumerate(normalized_projections):
         asymmetry_y = 0
         asymmetry_values_y = []
         segments = np.linspace(min(projection[:, 1]), max(projection[:, 1]), n_segments,
@@ -163,6 +161,22 @@ def get_min_max_varimax_normed_scaled(pointclouds, n_segments=20, get_1st_and_3r
         scaler_y.fit_transform(np.array(asymmetries_y).reshape(-1, 1)))
 
     return min_max_asymmetries(scaled_x, scaled_y)
+
+def compute_samp_on_dataset(point_clouds):
+    varimax_projections_1st_2nd_component = varimax_projections_real_2d(point_clouds)
+    asymmetry_values_x_axis, _ = asymmetries_x_axis(varimax_projections_1st_2nd_component)
+    asymmetry_values_y_axis, _ = asymmetries_y_axis(varimax_projections_1st_2nd_component)
+
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled_asymmetry_values_x_axis_norm = np.array(
+        scaler.fit_transform(np.array(asymmetry_values_x_axis).reshape(-1, 1)))
+
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled_asymmetry_values_y_axis_norm = np.array(
+        scaler.fit_transform(np.array(asymmetry_values_y_axis).reshape(-1, 1)))
+
+    return np.array(
+        min_max_asymmetries(scaled_asymmetry_values_x_axis_norm, scaled_asymmetry_values_y_axis_norm))
 
 
 def remove_outliers(data, max_number_std=2):
