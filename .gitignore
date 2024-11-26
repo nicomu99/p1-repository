@@ -4,6 +4,7 @@ mesh_files_new/
 point_clouds/
 figures/
 processed.pcd
+test_output/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
