@@ -5,6 +5,8 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler
 import open3d as o3d
 import samp as smp
+import warnings
+warnings.simplefilter('error', RuntimeWarning)
 
 class DescriptorWrapper:
     @staticmethod
@@ -25,43 +27,6 @@ class DescriptorWrapper:
         pca = PCA(n_components=3, random_state=0)
         pca.fit(point_cloud)
         return pca.explained_variance_ratio_
-
-    def compute_samp(self, point_cloud, num_segments=20):
-        scaled_pc = self.varimax_projection_with_scaling(point_cloud)
-
-        asymmetry_values = []
-        # Compute asymmetries along each axis
-        for axis in range(2):
-            segments = np.linspace(0, 1,
-                                   num_segments + 1)  # Divide the projected data space into segments along each axis
-
-            asymmetry_sum = 0
-            for i in range(num_segments):
-                # Get points in the current segment
-                in_segment = (scaled_pc[:, axis] >= segments[i]) & (scaled_pc[:, axis] < segments[i + 1])
-                segment_points = scaled_pc[in_segment]
-
-                if len(segment_points) > 0:
-                    other_axis = 1 - axis
-                    if len(np.sort(segment_points[:, other_axis])[-int(0.05 * len(segment_points)):]) > 0:
-                        max_value = np.median(np.sort(segment_points[:, other_axis])[-int(0.05 * len(segment_points)):])
-                    else:
-                        max_value = 0
-                    if len(np.sort(segment_points[:, other_axis])[:int(0.05 * len(segment_points))]) > 0:
-                        min_value = np.median(np.sort(segment_points[:, other_axis])[:int(0.05 * len(segment_points))])
-                    else:
-                        min_value = 0
-
-                    asymmetry_sum += abs(max_value - min_value)
-
-            asymmetry_values.append(asymmetry_sum)
-
-        # Normalize the asymmetry values using MinMax scaling
-        # scaler = MinMaxScaler()
-        # normalized_asymmetry = scaler.fit_transform(np.array(asymmetry_values).reshape(-1, 1)).flatten()
-
-        # Return the sorted tuple of asymmetry values
-        return list(sorted(asymmetry_values))
 
     def compute_scomp(self, point_cloud, num_grid_cells=30):
         scaled_pc = self.varimax_projection_with_scaling(point_cloud)
@@ -102,7 +67,7 @@ class DescriptorWrapper:
         return ratio
 
     @staticmethod
-    def compute_esf(self, point_cloud, num_bins=60):
+    def compute_esf(point_cloud, num_bins=60):
         # Convert point cloud to numpy array
         points = np.asarray(point_cloud.points)
 
@@ -144,7 +109,8 @@ class DescriptorWrapper:
 
         return esf_descriptor
 
-    def shell_model(self, point_cloud, num_bins=12):
+    @staticmethod
+    def shell_model(point_cloud, num_bins=12):
         dist_to_center = np.sqrt(np.sum(point_cloud ** 2, axis=1))
 
         bins = np.linspace(0, dist_to_center.max(), num_bins + 1)
@@ -154,7 +120,8 @@ class DescriptorWrapper:
 
         return histogram
 
-    def cartesian_to_spherical(self, points):
+    @staticmethod
+    def cartesian_to_spherical(points):
         x, y, z = points[:, 0], points[:, 1], points[:, 2]
         r = np.sqrt(x ** 2 + y ** 2 + z ** 2)
         theta = np.arccos(z / np.maximum(r, 1e-8))  # In case of division by 0
@@ -189,7 +156,8 @@ class DescriptorWrapper:
 
         return np.concatenate(histograms)
 
-    def compute_fpfh(self, point_cloud):
+    @staticmethod
+    def compute_fpfh(point_cloud):
         o3d_pc = o3d.geometry.PointCloud()
         o3d_pc.points = o3d.utility.Vector3dVector(point_cloud)
         o3d_pc.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.05, max_nn=30))
@@ -200,6 +168,45 @@ class DescriptorWrapper:
         fpfh_descriptors = np.array(fpfh.data).T
         return np.count_nonzero(fpfh_descriptors, axis=0)
 
+    def compute_samp(self, point_cloud, n_segments=20, sampling_percentage=0.05):
+        projection = self.varimax_projection_with_scaling(point_cloud)
+        min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
+        projection = min_max_scaler.fit_transform(projection)
+
+        samp_descriptor = []
+        segment_boundary = np.linspace(-1, 1, n_segments + 1)
+        for axis_index, axis in enumerate(["x", "y"]):
+            segmentation_axis = projection[:, axis_index]
+
+            asymmetries = []
+            for segment in range(n_segments):
+                lower_boundary = segment_boundary[segment]
+                upper_boundary = segment_boundary[segment + 1]
+                mask = (segmentation_axis >= lower_boundary) & (segmentation_axis < upper_boundary)
+
+                sorted_considered_values = np.sort(projection[mask, int(not axis_index)])
+                if len(sorted_considered_values) <= 1:
+                    # If 0 we can not compute a difference, if 1 we will subtract the same value form itself
+                    asymmetries.append(0)
+                    continue
+
+                outlier_count = max(1, int(np.ceil(len(sorted_considered_values) * sampling_percentage)))  # At least 1 element
+                top_median = np.median(sorted_considered_values[-outlier_count:])
+                bottom_median = np.median(sorted_considered_values[:outlier_count])
+                asymmetries.append(abs(top_median - bottom_median))
+            samp_descriptor.append(np.sum(asymmetries))
+        return -np.sort(-np.array(samp_descriptor))
+
+    # Normalize each axis independently
+    @staticmethod
+    def normalize_per_axis(data):
+        normalized_data = np.empty_like(data, dtype=float)
+        for axis in range(data.shape[1]):  # Iterate over columns (axes)
+            axis_min = np.min(data[:, axis])
+            axis_max = np.max(data[:, axis])
+            normalized_data[:, axis] = (data[:, axis] - axis_min) / (axis_max - axis_min)
+        return np.array(normalized_data)
+
     def compute_model_on_dataset(self, point_clouds, model='evrap', **kwargs):
         model_functions = {
             'evrap': self.compute_evrap,
@@ -209,7 +216,7 @@ class DescriptorWrapper:
             'shell_model': self.shell_model,
             'combined_model': self.combined_model,
             'fpfh': self.compute_fpfh,
-            'samp': smp.compute_samp_on_dataset
+            'samp': self.compute_samp
         }
 
         func = model_functions[model]
@@ -219,4 +226,9 @@ class DescriptorWrapper:
         descriptor = []
         for cloud in point_clouds:
             descriptor.append(func(cloud, **kwargs))
-        return np.array(descriptor)
+        descriptor = np.array(descriptor)
+
+        if model == 'samp':
+            descriptor = self.normalize_per_axis(descriptor)
+
+        return descriptor
