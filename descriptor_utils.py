@@ -215,7 +215,7 @@ class DescriptorWrapper:
             'sector_model': self.sector_model,
             'shell_model': self.shell_model,
             'combined_model': self.combined_model,
-            'fpfh': self.compute_fpfh,
+            'pfh': self.compute_fpfh,
             'samp': self.compute_samp
         }
 
