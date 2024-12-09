@@ -104,6 +104,7 @@ def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, 
     ax.spines['bottom'].set_color('white')
 
     ax.set_xlim(np.min(x_values), np.max(x_values))
+    ax.set_ylim(bottom=0)
 
     # Customize grid
     ax.grid(color='#666666', linestyle='--', linewidth=0.7)
