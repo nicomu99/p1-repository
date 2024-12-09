@@ -1,4 +1,6 @@
 import numpy as np
+import pandas as pd
+from descriptor_utils import DescriptorWrapper
 from sklearn.decomposition import PCA
 from sklearn.neighbors import kneighbors_graph
 
@@ -108,3 +110,19 @@ def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, 
 
     # Customize grid
     ax.grid(color='#666666', linestyle='--', linewidth=0.7)
+
+
+def compute_descriptors_from_file(file_name):
+    data = np.load(f"point_clouds/{file_name}", allow_pickle=True)
+    point_clouds = data['objects']
+    labels = data['labels']
+
+    descriptor_wrapper = DescriptorWrapper()
+    descriptor_list = ['evrap', 'sirm', 'scomp', 'samp', 'sector_model', 'shell_model', 'combined_model', 'pfh']
+    descriptor_embeddings = dict()
+
+    for descriptor in descriptor_list:
+        desc_output = descriptor_wrapper.compute_model_on_dataset(point_clouds, descriptor)
+        descriptor_embeddings[descriptor] = desc_output
+
+    return pd.DataFrame({k: list(v) for k, v in descriptor_embeddings.items()}), labels
