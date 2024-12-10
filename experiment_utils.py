@@ -102,7 +102,8 @@ def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, 
     if log_y:
         ax.set_yscale('log')
     else:
-        ax.set_ylim(bottom=0)
+        max_y = max(i for v in data_dict.values() for i in v)
+        ax.set_ylim(bottom=0, top=max_y * 1.2)
 
     ax.set_facecolor('#333333')  # Dark grey background for the plot area
 
@@ -121,11 +122,48 @@ def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, 
     # Customize grid
     ax.grid(color='#666666', linestyle='--', linewidth=0.7)
 
+def create_rotation_matrix():
+    rng = np.random.default_rng(seed=42)
+    theta_x = rng.uniform(0, 2 * np.pi)
+    theta_y = rng.uniform(0, 2 * np.pi)
+    theta_z = rng.uniform(0, 2 * np.pi)
 
-def compute_descriptors_from_file(file_name):
+    r_x = np.array([
+        [1, 0, 0],
+        [0, np.cos(theta_x), -np.sin(theta_x)],
+        [0, np.sin(theta_x), np.cos(theta_x)]
+    ])
+
+    r_y = np.array([
+        [np.cos(theta_y), 0, np.sin(theta_y)],
+        [0, 1, 0],
+        [-np.sin(theta_y), 0, np.cos(theta_y)]
+    ])
+
+    r_z = np.array([
+        [np.cos(theta_z), -np.sin(theta_z), 0],
+        [np.sin(theta_z), np.cos(theta_z), 0],
+        [0, 0, 1]
+    ])
+
+    return r_z @ r_y @ r_x
+
+def randomly_rotate_point_clouds(point_clouds):
+    rotated_pcs = np.empty_like(point_clouds)
+
+    for i in range(point_clouds.shape[0]):
+        rotation_matrix = create_rotation_matrix()
+        rotated_pcs[i] = np.dot(point_clouds[i], rotation_matrix.T)
+
+    return rotated_pcs
+
+def compute_descriptors_from_file(file_name, rotate_random=False):
     data = np.load(f"point_clouds/{file_name}", allow_pickle=True)
     point_clouds = data['objects']
     labels = data['labels']
+
+    if rotate_random:
+        point_clouds = randomly_rotate_point_clouds(point_clouds)
 
     descriptor_wrapper = DescriptorWrapper()
     descriptor_list = ['evrap', 'sirm', 'scomp', 'samp', 'sector_model', 'shell_model', 'combined_model', 'pfh']
