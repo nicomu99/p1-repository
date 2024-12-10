@@ -71,7 +71,7 @@ def compute_knn(data_df, descriptor_list=None, variant='directed', mode='connect
 
     return graph
 
-def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, title):
+def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, title, colors=None, log_y=False):
     linestyles = [('.', 'solid'), ('o', 'dotted'), ('^', 'dashed'), ('s', 'dashdot'), ('o', 'solid'), ('.', 'dotted'),
                   ('s', 'dashed'), ('^', 'dashdot')]
 
@@ -83,15 +83,26 @@ def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, 
             legend_label = descriptor[0].replace("_", " ").capitalize()
 
         linestyle = linestyles[index % len(linestyles)]
-        ax.plot(x_values, data_dict["_".join(descriptor)],
-                label=legend_label, linestyle=linestyle[1],
-                marker=linestyle[0])
+        plot_args = {
+            'label': legend_label,
+            'linestyle': linestyle[1],
+            'marker': linestyle[0]
+        }
+        if colors is not None:
+            plot_args['color'] = colors[index]
+
+        ax.plot(x_values, data_dict["_".join(descriptor)], **plot_args)
 
     ax.set_xlabel(x_label, color='white')
     ax.set_ylabel(y_label, color='white')
     ax.set_title(title, color='white', loc="left")
     ax.legend(loc="upper left")
     ax.grid(True)
+
+    if log_y:
+        ax.set_yscale('log')
+    else:
+        ax.set_ylim(bottom=0)
 
     ax.set_facecolor('#333333')  # Dark grey background for the plot area
 
@@ -106,7 +117,6 @@ def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, 
     ax.spines['bottom'].set_color('white')
 
     ax.set_xlim(np.min(x_values), np.max(x_values))
-    ax.set_ylim(bottom=0)
 
     # Customize grid
     ax.grid(color='#666666', linestyle='--', linewidth=0.7)
@@ -126,3 +136,48 @@ def compute_descriptors_from_file(file_name):
         descriptor_embeddings[descriptor] = desc_output
 
     return pd.DataFrame({k: list(v) for k, v in descriptor_embeddings.items()}), labels
+
+
+def compute_ratio_cut(adj_list, clusters):
+    unique_labels = np.unique(clusters)
+
+    # Compute ratio cut value
+    ratio_cut_value = 0
+    for cluster in unique_labels:
+        # Find nodes in the current cluster
+        cluster_nodes = np.where(clusters == cluster)[0]
+        cluster_size = len(cluster_nodes)
+
+        # Find nodes not in the current cluster
+        complement_nodes = np.setdiff1d(np.arange(len(clusters)), cluster_nodes)
+
+        cut_value = adj_list[np.ix_(cluster_nodes, complement_nodes)].sum()
+
+        # Add normalized cut to the total
+        ratio_cut_value += cut_value / cluster_size
+
+    return ratio_cut_value
+
+
+def compute_normalized_cut(adj_matrix, clusters):
+    unique_labels = np.unique(clusters)
+
+    normalized_cut_value = 0
+    for cluster in unique_labels:
+        # Find nodes in the current cluster
+        cluster_nodes = np.where(clusters == cluster)[0]
+
+        # Find nodes not in the current cluster
+        complement_nodes = np.setdiff1d(np.arange(len(clusters)), cluster_nodes)
+
+        # Compute Cut(V_i, complement)
+        cut_value = adj_matrix[np.ix_(cluster_nodes, complement_nodes)].sum()
+
+        # Compute Vol(V_i)
+        vol_value = adj_matrix[cluster_nodes, :].sum()
+
+        # Add normalized cut value
+        if vol_value > 0:  # Avoid division by zero
+            normalized_cut_value += cut_value / vol_value
+
+    return normalized_cut_value
