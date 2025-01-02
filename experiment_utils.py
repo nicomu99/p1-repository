@@ -1,3 +1,5 @@
+import os
+import ast
 import numpy as np
 import pandas as pd
 from descriptor_utils import DescriptorWrapper
@@ -158,22 +160,47 @@ def randomly_rotate_point_clouds(point_clouds):
     return rotated_pcs
 
 def compute_descriptors_from_file(file_name, rotate_random=False):
-    data = np.load(f"point_clouds/{file_name}", allow_pickle=True)
-    point_clouds = data['objects']
-    labels = data['labels']
-
-    if rotate_random:
-        point_clouds = randomly_rotate_point_clouds(point_clouds)
-
-    descriptor_wrapper = DescriptorWrapper()
     descriptor_list = ['evrap', 'sirm', 'scomp', 'samp', 'sector_model', 'shell_model', 'combined_model', 'pfh']
-    descriptor_embeddings = dict()
 
-    for descriptor in descriptor_list:
-        desc_output = descriptor_wrapper.compute_model_on_dataset(point_clouds, descriptor)
-        descriptor_embeddings[descriptor] = desc_output
+    if os.path.isfile(f"test_output/{file_name}.csv"):
+        if rotate_random:
+            df = pd.read_csv(f"test_output/{file_name}_rotated.csv", index_col=0)
+        else:
+            df = pd.read_csv(f"test_output/{file_name}.csv", index_col=0)
 
-    return pd.DataFrame({k: list(v) for k, v in descriptor_embeddings.items()}), labels
+        for col in descriptor_list:
+            df[col] = df[col].apply(lambda x: ast.literal_eval(x) if pd.notnull(x)  else x)
+
+        return df
+    else:
+        data = np.load(f"point_clouds/{file_name}.npz", allow_pickle=True)
+        point_clouds = data['objects']
+        labels = data['labels']
+
+        if rotate_random:
+            point_clouds = randomly_rotate_point_clouds(point_clouds)
+
+        descriptor_wrapper = DescriptorWrapper()
+        descriptor_list = ['evrap', 'sirm', 'scomp', 'samp', 'sector_model', 'shell_model', 'combined_model', 'pfh']
+        descriptor_embeddings = dict()
+
+        for descriptor in descriptor_list:
+            desc_output = descriptor_wrapper.compute_model_on_dataset(point_clouds, descriptor)
+            # need to convert for saving and loading
+            desc_output = desc_output.tolist()
+            descriptor_embeddings[descriptor] = desc_output
+
+        df = pd.DataFrame({k: list(v) for k, v in descriptor_embeddings.items()})
+        df["labels"] = labels
+
+        if rotate_random:
+            df.to_csv(f"test_output/{file_name}_rotated.csv")
+        else:
+            df.to_csv(f"test_output/{file_name}.csv")
+
+        return df
+
+
 
 
 def compute_ratio_cut(adj_list, clusters):
