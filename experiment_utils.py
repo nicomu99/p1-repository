@@ -122,8 +122,7 @@ def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, 
     # Customize grid
     ax.grid(color='#666666', linestyle='--', linewidth=0.7)
 
-def create_rotation_matrix():
-    rng = np.random.default_rng(seed=42)
+def create_rotation_matrix(rng):
     theta_x = rng.uniform(0, 2 * np.pi)
     theta_y = rng.uniform(0, 2 * np.pi)
     theta_z = rng.uniform(0, 2 * np.pi)
@@ -150,9 +149,10 @@ def create_rotation_matrix():
 
 def randomly_rotate_point_clouds(point_clouds):
     rotated_pcs = np.empty_like(point_clouds)
+    rng = np.random.default_rng(seed=42)
 
     for i in range(point_clouds.shape[0]):
-        rotation_matrix = create_rotation_matrix()
+        rotation_matrix = create_rotation_matrix(rng)
         rotated_pcs[i] = np.dot(point_clouds[i], rotation_matrix.T)
 
     return rotated_pcs
