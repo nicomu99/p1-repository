@@ -51,7 +51,7 @@ class DescriptorWrapper:
         vol_convex = hull.volume  # Area of the convex hull in 2D
 
         # Calculate the concavity measure
-        return vol_grids / vol_convex if vol_convex > 0 else 0
+        return np.array([vol_grids / vol_convex if vol_convex > 0 else 0])
 
     def sirm(self, point_cloud, n_bins=20):
         scaled_pc = self.varimax_projection_without_scaling(point_cloud)
@@ -64,7 +64,7 @@ class DescriptorWrapper:
         else:
             ratio = 0
 
-        return ratio
+        return np.array([ratio])
 
     @staticmethod
     def compute_esf(point_cloud, num_bins=60):
