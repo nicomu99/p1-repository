@@ -162,11 +162,9 @@ def randomly_rotate_point_clouds(point_clouds):
 def compute_descriptors_from_file(file_name, rotate_random=False):
     descriptor_list = ['evrap', 'sirm', 'scomp', 'samp', 'sector_model', 'shell_model', 'combined_model', 'pfh']
 
-    if os.path.isfile(f"test_output/{file_name}.csv"):
-        if rotate_random:
-            df = pd.read_csv(f"test_output/{file_name}_rotated.csv", index_col=0)
-        else:
-            df = pd.read_csv(f"test_output/{file_name}.csv", index_col=0)
+    file = f"test_output/{file_name}{'_rotated' if rotate_random else ''}.csv"
+    if os.path.isfile(file):
+        df = pd.read_csv(f"test_output/{file_name}_rotated.csv", index_col=0)
 
         for col in descriptor_list:
             df[col] = df[col].apply(lambda x: ast.literal_eval(x) if pd.notnull(x)  else x)
@@ -192,11 +190,7 @@ def compute_descriptors_from_file(file_name, rotate_random=False):
 
         df = pd.DataFrame({k: list(v) for k, v in descriptor_embeddings.items()})
         df["labels"] = labels
-
-        if rotate_random:
-            df.to_csv(f"test_output/{file_name}_rotated.csv")
-        else:
-            df.to_csv(f"test_output/{file_name}.csv")
+        df.to_csv(file)
 
         return df
 
