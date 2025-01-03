@@ -22,6 +22,18 @@ class DescriptorWrapper:
         return fa.fit_transform(point_cloud)  # Apply Factor Analysis with Varimax
 
     @staticmethod
+    def varimax_projection_with_scaling_3d(point_cloud):
+        fa = FactorAnalysis(n_components=3, random_state=0, rotation='varimax')
+        transformed_pc = fa.fit_transform(point_cloud)  # Apply Factor Analysis with Varimax
+        scaler = MinMaxScaler()  # Apply min max scaling
+        return scaler.fit_transform(transformed_pc)
+
+    @staticmethod
+    def varimax_projection_without_scaling_3d(point_cloud):
+        fa = FactorAnalysis(n_components=3, random_state=0, rotation='varimax')
+        return fa.fit_transform(point_cloud)  # Apply Factor Analysis with Varimax
+
+    @staticmethod
     def compute_evrap(point_cloud):
         # This function contains the EVRAP descriptor as defined in the thesis, i.e. a PCA with 3 components
         pca = PCA(n_components=3, random_state=0)
@@ -29,14 +41,12 @@ class DescriptorWrapper:
         return pca.explained_variance_ratio_
 
     def compute_scomp(self, point_cloud, num_grid_cells=30):
-        scaled_pc = self.varimax_projection_with_scaling(point_cloud)
+        scaled_pc = self.varimax_projection_without_scaling(point_cloud)
 
-        grid_spacex = np.linspace(0, 1, num_grid_cells)
-        grid_spacey = np.linspace(0, 1, num_grid_cells)
+        grid_spacex = np.linspace(np.min(scaled_pc[:, 0]), np.max(scaled_pc[:, 0]), num_grid_cells)
+        grid_spacey = np.linspace(np.min(scaled_pc[:, 1]), np.max(scaled_pc[:, 1]), num_grid_cells)
 
         grid = np.zeros((num_grid_cells - 1, num_grid_cells - 1))
-
-        # Fill the grid with presence of points
         for point in scaled_pc:
             x_idx = np.searchsorted(grid_spacex, point[0]) - 1
             y_idx = np.searchsorted(grid_spacey, point[1]) - 1
@@ -53,18 +63,62 @@ class DescriptorWrapper:
         # Calculate the concavity measure
         return np.array([vol_grids / vol_convex if vol_convex > 0 else 0])
 
-    def sirm(self, point_cloud, n_bins=20):
+    def compute_scomp_3d(self, point_cloud, num_grid_cells=30):
+        scaled_pc = self.varimax_projection_without_scaling_3d(point_cloud)
+
+        descriptor = []
+        for i, (x, y) in enumerate([(0, 1), (0, 2), (1, 2)]):
+            projection_2d = scaled_pc[:, [x, y]]
+
+            grid_spacex = np.linspace(np.min(projection_2d[:, 0]), np.max(projection_2d[:, 0]), num_grid_cells)
+            grid_spacey = np.linspace(np.min(projection_2d[:, 1]), np.max(projection_2d[:, 1]), num_grid_cells)
+
+            grid = np.zeros((num_grid_cells - 1, num_grid_cells - 1))
+            for point in projection_2d:
+                x_idx = np.searchsorted(grid_spacex, point[0]) - 1
+                y_idx = np.searchsorted(grid_spacey, point[1]) - 1
+                if 0 <= x_idx < num_grid_cells - 1 and 0 <= y_idx < num_grid_cells - 1:
+                    grid[x_idx, y_idx] = 1
+
+            vol_grids = np.sum(grid)
+
+            hull = ConvexHull(projection_2d)
+            vol_convex = hull.volume
+
+            descriptor.append([vol_grids / vol_convex if vol_convex > 0 else 0])
+
+        return np.array(descriptor)
+
+    def sirm(self, point_cloud):
         scaled_pc = self.varimax_projection_without_scaling(point_cloud)
 
-        hist, _, _ = np.histogram2d(scaled_pc[:, 0], scaled_pc[:, 1], bins=n_bins)
+        min_x, max_x = np.min(scaled_pc[:, 0]), np.max(scaled_pc[:, 0])
+        min_y, max_y = np.min(scaled_pc[:, 1]), np.max(scaled_pc[:, 1])
 
-        counts = [item for sublist in hist for item in sublist]
-        if len([x for x in counts if x == 0]):
-            ratio = len([x for x in counts if x != 0]) / len([x for x in counts if x == 0])
-        else:
-            ratio = 0
+        area = (max_x - min_x) * (max_y - min_y)
 
-        return np.array([ratio])
+        hull = ConvexHull(scaled_pc)
+        vol_convex = hull.volume
+
+        return np.array([vol_convex / area if area > 0 else 0])
+
+    def sirm_3d(self, point_cloud):
+        scaled_pc = self.varimax_projection_without_scaling_3d(point_cloud)
+
+        descriptor = []
+        for i, (x, y) in enumerate([(0, 1), (0, 2), (1, 2)]):
+            projection_2d = scaled_pc[:, [x, y]]
+            min_x, max_x = np.min(projection_2d[:, 0]), np.max(projection_2d[:, 0])
+            min_y, max_y = np.min(projection_2d[:, 1]), np.max(projection_2d[:, 1])
+
+            area = (max_x - min_x) * (max_y - min_y)
+
+            hull = ConvexHull(scaled_pc)
+            vol_convex = hull.volume
+
+            descriptor.append([vol_convex / area if area > 0 else 0])
+
+        return np.array(descriptor)
 
     @staticmethod
     def compute_esf(point_cloud, num_bins=60):
@@ -168,6 +222,16 @@ class DescriptorWrapper:
         fpfh_descriptors = np.array(fpfh.data).T
         return np.count_nonzero(fpfh_descriptors, axis=0)
 
+    # Normalize each axis independently
+    @staticmethod
+    def normalize_per_axis(data):
+        normalized_data = np.empty_like(data, dtype=float)
+        for axis in range(data.shape[1]):  # Iterate over columns (axes)
+            axis_min = np.min(data[:, axis])
+            axis_max = np.max(data[:, axis])
+            normalized_data[:, axis] = (data[:, axis] - axis_min) / (axis_max - axis_min)
+        return np.array(normalized_data)
+
     def compute_samp(self, point_cloud, n_segments=20, sampling_percentage=0.05):
         projection = self.varimax_projection_with_scaling(point_cloud)
         min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
@@ -195,17 +259,44 @@ class DescriptorWrapper:
                 bottom_median = np.median(sorted_considered_values[:outlier_count])
                 asymmetries.append(abs(top_median - bottom_median))
             samp_descriptor.append(np.sum(asymmetries))
-        return -np.sort(-np.array(samp_descriptor))
 
-    # Normalize each axis independently
-    @staticmethod
-    def normalize_per_axis(data):
-        normalized_data = np.empty_like(data, dtype=float)
-        for axis in range(data.shape[1]):  # Iterate over columns (axes)
-            axis_min = np.min(data[:, axis])
-            axis_max = np.max(data[:, axis])
-            normalized_data[:, axis] = (data[:, axis] - axis_min) / (axis_max - axis_min)
-        return np.array(normalized_data)
+        desc = -np.sort(-np.array(samp_descriptor))
+        return self.normalize_per_axis(desc)
+
+    def compute_samp_3d(self, point_cloud, n_segments=20, sampling_percentage=0.05):
+        projection = self.varimax_projection_with_scaling_3d(point_cloud)
+
+        samp_3d = []
+        segment_boundary = np.linspace(-1, 1, n_segments + 1)
+        for x, y in [(0, 1), (0, 2), (1, 2)]:
+            projection_2d = projection[:, [x, y]]
+
+            samp_descriptor = []
+            for axis_index, axis in enumerate(["x", "y"]):
+                segmentation_axis = projection_2d[:, axis_index]
+
+                asymmetries = []
+                for segment in range(n_segments):
+                    lower_boundary = segment_boundary[segment]
+                    upper_boundary = segment_boundary[segment + 1]
+                    mask = (segmentation_axis >= lower_boundary) & (segmentation_axis < upper_boundary)
+
+                    sorted_considered_values = np.sort(projection_2d[mask, int(not axis_index)])
+                    if len(sorted_considered_values) <= 1:
+                        # If 0 we can not compute a difference, if 1 we will subtract the same value form itself
+                        asymmetries.append(0)
+                        continue
+
+                    outlier_count = max(1, int(np.ceil(len(sorted_considered_values) * sampling_percentage)))  # At least 1 element
+                    top_median = np.median(sorted_considered_values[-outlier_count:])
+                    bottom_median = np.median(sorted_considered_values[:outlier_count])
+                    asymmetries.append(abs(top_median - bottom_median))
+                samp_descriptor.append(np.sum(asymmetries))
+
+            desc = np.sort(samp_descriptor)[::-1]
+            normalized = self.normalize_per_axis(desc)
+            samp_3d.extend(normalized[:2])
+        return np.array(samp_3d)
 
     def compute_model_on_dataset(self, point_clouds, model='evrap', **kwargs):
         model_functions = {
@@ -216,7 +307,10 @@ class DescriptorWrapper:
             'shell_model': self.shell_model,
             'combined_model': self.combined_model,
             'pfh': self.compute_fpfh,
-            'samp': self.compute_samp
+            'samp': self.compute_samp,
+            'samp_3d': self.compute_samp_3d,
+            'scomp_3d': self.compute_scomp_3d,
+            'sirm_3d': self.sirm_3d
         }
 
         func = model_functions[model]
@@ -227,8 +321,5 @@ class DescriptorWrapper:
         for cloud in point_clouds:
             descriptor.append(func(cloud, **kwargs))
         descriptor = np.array(descriptor)
-
-        if model == 'samp':
-            descriptor = self.normalize_per_axis(descriptor)
 
         return descriptor
