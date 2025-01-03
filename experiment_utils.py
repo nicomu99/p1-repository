@@ -164,7 +164,7 @@ def compute_descriptors_from_file(file_name, rotate_random=False):
 
     file = f"test_output/{file_name}{'_rotated' if rotate_random else ''}.csv"
     if os.path.isfile(file):
-        df = pd.read_csv(f"test_output/{file_name}_rotated.csv", index_col=0)
+        df = pd.read_csv(file, index_col=0)
 
         for col in descriptor_list:
             df[col] = df[col].apply(lambda x: ast.literal_eval(x) if pd.notnull(x)  else x)
