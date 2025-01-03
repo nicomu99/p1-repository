@@ -44,6 +44,12 @@ def compute_knn(data_df, descriptor_list=None, variant='directed', mode='connect
         knn_data.append(np.stack(data_df['sirm'].to_numpy()).reshape(len(data_df), 1))
     if 'scomp' in descriptor_list:
         knn_data.append(np.stack(data_df['scomp'].to_numpy()).reshape(len(data_df), 1))
+    if 'samp_3d' in descriptor_list:
+        knn_data.append(np.stack(data_df['samp_3d'].to_numpy()))
+    if 'sirm_3d' in descriptor_list:
+        knn_data.append(np.stack(data_df['sirm_3d'].to_numpy()))
+    if 'scomp_3d' in descriptor_list:
+        knn_data.append(np.stack(data_df['scomp_3d'].to_numpy()))
 
     if 'pfh' in descriptor_list:
         knn_data.append(np.stack(data_df['pfh'].to_numpy()))
@@ -160,7 +166,10 @@ def randomly_rotate_point_clouds(point_clouds):
     return rotated_pcs
 
 def compute_descriptors_from_file(file_name, rotate_random=False):
-    descriptor_list = ['evrap', 'sirm', 'scomp', 'samp', 'sector_model', 'shell_model', 'combined_model', 'pfh']
+    descriptor_list = [
+        'evrap', 'sirm', 'scomp', 'samp', 'sector_model', 'shell_model', 'combined_model',
+        'pfh', 'sirm_3d', 'scomp_3d', 'samp_3d'
+    ]
 
     file = f"test_output/{file_name}{'_rotated' if rotate_random else ''}.csv"
     if os.path.isfile(file):
@@ -179,7 +188,6 @@ def compute_descriptors_from_file(file_name, rotate_random=False):
             point_clouds = randomly_rotate_point_clouds(point_clouds)
 
         descriptor_wrapper = DescriptorWrapper()
-        descriptor_list = ['evrap', 'sirm', 'scomp', 'samp', 'sector_model', 'shell_model', 'combined_model', 'pfh']
         descriptor_embeddings = dict()
 
         for descriptor in descriptor_list:

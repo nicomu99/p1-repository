@@ -85,7 +85,7 @@ class DescriptorWrapper:
             hull = ConvexHull(projection_2d)
             vol_convex = hull.volume
 
-            descriptor.append([vol_grids / vol_convex if vol_convex > 0 else 0])
+            descriptor.append(vol_grids / vol_convex if vol_convex > 0 else 0)
 
         return np.array(descriptor)
 
@@ -116,7 +116,7 @@ class DescriptorWrapper:
             hull = ConvexHull(scaled_pc)
             vol_convex = hull.volume
 
-            descriptor.append([vol_convex / area if area > 0 else 0])
+            descriptor.append(vol_convex / area if area > 0 else 0)
 
         return np.array(descriptor)
 
@@ -222,16 +222,6 @@ class DescriptorWrapper:
         fpfh_descriptors = np.array(fpfh.data).T
         return np.count_nonzero(fpfh_descriptors, axis=0)
 
-    # Normalize each axis independently
-    @staticmethod
-    def normalize_per_axis(data):
-        normalized_data = np.empty_like(data, dtype=float)
-        for axis in range(data.shape[1]):  # Iterate over columns (axes)
-            axis_min = np.min(data[:, axis])
-            axis_max = np.max(data[:, axis])
-            normalized_data[:, axis] = (data[:, axis] - axis_min) / (axis_max - axis_min)
-        return np.array(normalized_data)
-
     def compute_samp(self, point_cloud, n_segments=20, sampling_percentage=0.05):
         projection = self.varimax_projection_with_scaling(point_cloud)
         min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
@@ -260,8 +250,7 @@ class DescriptorWrapper:
                 asymmetries.append(abs(top_median - bottom_median))
             samp_descriptor.append(np.sum(asymmetries))
 
-        desc = -np.sort(-np.array(samp_descriptor))
-        return self.normalize_per_axis(desc)
+        return -np.sort(-np.array(samp_descriptor))
 
     def compute_samp_3d(self, point_cloud, n_segments=20, sampling_percentage=0.05):
         projection = self.varimax_projection_with_scaling_3d(point_cloud)
@@ -294,9 +283,18 @@ class DescriptorWrapper:
                 samp_descriptor.append(np.sum(asymmetries))
 
             desc = np.sort(samp_descriptor)[::-1]
-            normalized = self.normalize_per_axis(desc)
-            samp_3d.extend(normalized[:2])
+            samp_3d.extend(desc[:2])
         return np.array(samp_3d)
+
+    # Normalize each axis independently
+    @staticmethod
+    def normalize_per_axis(data):
+        normalized_data = np.empty_like(data, dtype=float)
+        for axis in range(data.shape[1]):  # Iterate over columns (axes)
+            axis_min = np.min(data[:, axis])
+            axis_max = np.max(data[:, axis])
+            normalized_data[:, axis] = (data[:, axis] - axis_min) / (axis_max - axis_min)
+        return np.array(normalized_data)
 
     def compute_model_on_dataset(self, point_clouds, model='evrap', **kwargs):
         model_functions = {
@@ -321,5 +319,8 @@ class DescriptorWrapper:
         for cloud in point_clouds:
             descriptor.append(func(cloud, **kwargs))
         descriptor = np.array(descriptor)
+
+        if model == 'samp' or model == 'samp_3d':
+            descriptor = self.normalize_per_axis(descriptor)
 
         return descriptor
