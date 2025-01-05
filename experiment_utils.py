@@ -1,5 +1,6 @@
 import os
 import ast
+import pickle
 import numpy as np
 import pandas as pd
 from descriptor_utils import DescriptorWrapper
@@ -156,12 +157,19 @@ def create_rotation_matrix(rng):
     return r_z @ r_y @ r_x
 
 def randomly_rotate_point_clouds(point_clouds):
-    rotated_pcs = np.empty_like(point_clouds)
     rng = np.random.default_rng(seed=42)
 
-    for i in range(point_clouds.shape[0]):
-        rotation_matrix = create_rotation_matrix(rng)
-        rotated_pcs[i] = np.dot(point_clouds[i], rotation_matrix.T)
+    if type(point_clouds) == np.ndarray:
+        rotated_pcs = np.empty_like(point_clouds)
+
+        for i in range(point_clouds.shape[0]):
+            rotation_matrix = create_rotation_matrix(rng)
+            rotated_pcs[i] = np.dot(point_clouds[i], rotation_matrix.T)
+    else:
+        rotated_pcs = []
+        for pc in point_clouds:
+            rotation_matrix = create_rotation_matrix(rng)
+            rotated_pcs.append(np.dot(pc, rotation_matrix.T))
 
     return rotated_pcs
 
@@ -180,7 +188,11 @@ def compute_descriptors_from_file(file_name, rotate_random=False):
 
         return df
     else:
-        data = np.load(f"point_clouds/{file_name}.npz", allow_pickle=True)
+        if not file == 'mc_gill_whole':
+            with open(f"point_clouds/{file_name}.pkl", "rb") as f:
+                data = pickle.load(f)
+        else:
+            data = np.load(f"point_clouds/{file_name}.npz", allow_pickle=True)
         point_clouds = data['objects']
         labels = data['labels']
 
