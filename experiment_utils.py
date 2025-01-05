@@ -114,12 +114,11 @@ def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, 
         max_y = max(i for v in data_dict.values() for i in v)
         ax.set_ylim(bottom=0, top=max_y * 1.2)
 
-    ax.set_facecolor('#333333')  # Dark grey background for the plot area
+    ax.set_facecolor('#333333')
 
-    # Customize ticks and labels
-    ax.tick_params(colors='white')  # White ticks
-    ax.xaxis.label.set_color('white')  # X-axis label color
-    ax.yaxis.label.set_color('white')  # Y-axis label color
+    ax.tick_params(colors='white')
+    ax.xaxis.label.set_color('white')
+    ax.yaxis.label.set_color('white')
 
     ax.spines['top'].set_color('white')
     ax.spines['right'].set_color('white')
@@ -128,7 +127,6 @@ def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, 
 
     ax.set_xlim(np.min(x_values), np.max(x_values))
 
-    # Customize grid
     ax.grid(color='#666666', linestyle='--', linewidth=0.7)
 
 def create_rotation_matrix(rng):
