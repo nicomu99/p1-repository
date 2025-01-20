@@ -37,30 +37,11 @@ def compute_knn(data_df, descriptor_list=None, variant='directed', mode='connect
         descriptor_list = ['evrap']
 
     knn_data = []
-    if 'evrap' in descriptor_list:
-        knn_data.append(np.stack(data_df['evrap'].to_numpy()))
-    if 'samp' in descriptor_list:
-        knn_data.append(np.stack(data_df['samp'].to_numpy()))
-    if 'sirm' in descriptor_list:
-        knn_data.append(np.stack(data_df['sirm'].to_numpy()).reshape(len(data_df), 1))
-    if 'scomp' in descriptor_list:
-        knn_data.append(np.stack(data_df['scomp'].to_numpy()).reshape(len(data_df), 1))
-    if 'samp_3d' in descriptor_list:
-        knn_data.append(np.stack(data_df['samp_3d'].to_numpy()))
-    if 'sirm_3d' in descriptor_list:
-        knn_data.append(np.stack(data_df['sirm_3d'].to_numpy()))
-    if 'scomp_3d' in descriptor_list:
-        knn_data.append(np.stack(data_df['scomp_3d'].to_numpy()))
-
-    if 'pfh' in descriptor_list:
-        knn_data.append(np.stack(data_df['pfh'].to_numpy()))
-    if 'sector_model' in descriptor_list:
-        knn_data.append(np.stack(data_df['sector_model'].to_numpy()))
-    if 'shell_model' in descriptor_list:
-        knn_data.append(np.stack(data_df['shell_model'].to_numpy()))
-    if 'combined_model' in descriptor_list:
-        knn_data.append(np.stack(data_df['combined_model'].to_numpy()))
-
+    for descriptor in descriptor_list:
+        if descriptor == 'sirm' or descriptor == 'scomp':
+            knn_data.append(np.stack(data_df[descriptor].to_numpy()).reshape(len(data_df), 1))
+        else:
+            knn_data.append(np.stack(data_df[descriptor].to_numpy()))
     knn_data = np.hstack(knn_data)
 
     if pca:
@@ -174,7 +155,7 @@ def randomly_rotate_point_clouds(point_clouds):
 def compute_descriptors_from_file(file_name, rotate_random=False):
     descriptor_list = [
         'evrap', 'sirm', 'scomp', 'samp', 'sector_model', 'shell_model', 'combined_model',
-        'pfh', 'sirm_3d', 'scomp_3d', 'samp_3d'
+        'pfh', 'sirm_3d', 'scomp_3d', 'samp_3d', 'samp_3d_no_abs'
     ]
 
     file = f"test_output/{file_name}{'_rotated' if rotate_random else ''}.csv"

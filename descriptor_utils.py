@@ -252,7 +252,7 @@ class DescriptorWrapper:
 
         return -np.sort(-np.array(samp_descriptor))
 
-    def compute_samp_3d(self, point_cloud, n_segments=20, sampling_percentage=0.05):
+    def compute_samp_3d(self, point_cloud, n_segments=20, sampling_percentage=0.05, absolute=True):
         projection = self.varimax_projection_with_scaling_3d(point_cloud)
 
         samp_3d = []
@@ -279,12 +279,18 @@ class DescriptorWrapper:
                     outlier_count = max(1, int(np.ceil(len(sorted_considered_values) * sampling_percentage)))  # At least 1 element
                     top_median = np.median(sorted_considered_values[-outlier_count:])
                     bottom_median = np.median(sorted_considered_values[:outlier_count])
-                    asymmetries.append(abs(top_median - bottom_median))
+                    if absolute:
+                        asymmetries.append(abs(top_median - bottom_median))
+                    else:
+                        asymmetries.append(top_median - bottom_median)
                 samp_descriptor.append(np.sum(asymmetries))
 
             desc = np.sort(samp_descriptor)[::-1]
             samp_3d.extend(desc[:2])
         return np.array(samp_3d)
+
+    def compute_samp_3d_no_abs(self, point_cloud, n_segments=20, sampling_percentage=0.05):
+        return self.compute_samp_3d(point_cloud, n_segments=n_segments, sampling_percentage=sampling_percentage, absolute=False)
 
     # Normalize each axis independently
     @staticmethod
@@ -308,7 +314,8 @@ class DescriptorWrapper:
             'samp': self.compute_samp,
             'samp_3d': self.compute_samp_3d,
             'scomp_3d': self.compute_scomp_3d,
-            'sirm_3d': self.sirm_3d
+            'sirm_3d': self.sirm_3d,
+            'samp_3d_no_abs': self.compute_samp_3d_no_abs
         }
 
         func = model_functions[model]
@@ -320,7 +327,7 @@ class DescriptorWrapper:
             descriptor.append(func(cloud, **kwargs))
         descriptor = np.array(descriptor)
 
-        if model == 'samp' or model == 'samp_3d':
+        if model == 'samp' or model == 'samp_3d' or model == 'samp_3d_no_abs':
             descriptor = self.normalize_per_axis(descriptor)
 
         return descriptor
