@@ -4,7 +4,6 @@ from scipy.spatial import ConvexHull
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler
 import open3d as o3d
-import samp as smp
 import warnings
 warnings.simplefilter('error', RuntimeWarning)
 

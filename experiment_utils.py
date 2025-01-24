@@ -83,9 +83,9 @@ def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, 
 
         ax.plot(x_values, data_dict["_".join(descriptor)], **plot_args)
 
-    ax.set_xlabel(x_label, color='white')
-    ax.set_ylabel(y_label, color='white')
-    ax.set_title(title, color='white', loc="left")
+    ax.set_xlabel(x_label, color='black')
+    ax.set_ylabel(y_label, color='black')
+    ax.set_title(title, color='black', loc="left")
     ax.legend(loc="upper left")
     ax.grid(True)
 
@@ -95,16 +95,16 @@ def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, 
         max_y = max(i for v in data_dict.values() for i in v)
         ax.set_ylim(bottom=0, top=max_y * 1.2)
 
-    ax.set_facecolor('#333333')
+    ax.set_facecolor('#FFFFFF')
 
-    ax.tick_params(colors='white')
-    ax.xaxis.label.set_color('white')
-    ax.yaxis.label.set_color('white')
+    ax.tick_params(colors='black')
+    ax.xaxis.label.set_color('black')
+    ax.yaxis.label.set_color('black')
 
-    ax.spines['top'].set_color('white')
-    ax.spines['right'].set_color('white')
-    ax.spines['left'].set_color('white')
-    ax.spines['bottom'].set_color('white')
+    ax.spines['top'].set_color('black')
+    ax.spines['right'].set_color('black')
+    ax.spines['left'].set_color('black')
+    ax.spines['bottom'].set_color('black')
 
     ax.set_xlim(np.min(x_values), np.max(x_values))
 
