@@ -155,7 +155,7 @@ def randomly_rotate_point_clouds(point_clouds):
 def compute_descriptors_from_file(file_name, rotate_random=False):
     descriptor_list = [
         'evrap', 'sirm', 'scomp', 'samp', 'sector_model', 'shell_model', 'combined_model',
-        'pfh', 'sirm_3d', 'scomp_3d', 'samp_3d', 'samp_3d_no_abs'
+        'pfh', 'sirm_3d', 'scomp_3d', 'samp_3d', # 'samp_3d_no_abs'
     ]
 
     file = f"test_output/{file_name}{'_rotated' if rotate_random else ''}.csv"
