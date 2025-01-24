@@ -5,6 +5,7 @@ point_clouds/
 figures/
 processed.pcd
 test_output/
+blogpost/figure
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
