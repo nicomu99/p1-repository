@@ -39,16 +39,21 @@ html {
     height: 400px;
 }
 
-.embedded-3d-figure-img-split-3 {
+.embedded-3d-figure-img-no-split, .embedded-3d-figure-img-split-2, .embedded-3d-figure-img-split-3 {
     flex: 1;
-    max-width: calc(33.333% - 10px);
     height: auto;
 }
 
+.embedded-3d-figure-img-no-split {
+    max-width: 100%;
+}
+
 .embedded-3d-figure-img-split-2 {
-    flex: 1;
     max-width: calc(50% - 10px);
-    height: auto;
+}
+
+.embedded-3d-figure-img-split-3 {
+    max-width: calc(33.333% - 10px);
 }
 
 .embedded-3d-figure-caption {

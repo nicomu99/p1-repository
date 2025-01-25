@@ -182,7 +182,7 @@
     <figure class="embedded-3d-figure">
         <iframe class="embedded-3d-figure-iframe descriptor-figure" src="figure/protein_scomp.html"></iframe>
         <figcaption class="embedded-3d-figure-caption">
-            Figure 2: A figure depicting how to calculate the SCOMP 3D shape descriptor.
+            Figure 3: A figure depicting how to calculate the SCOMP 3D shape descriptor.
         </figcaption>
     </figure>
 
@@ -219,7 +219,7 @@
     <figure class="embedded-3d-figure">
         <iframe class="embedded-3d-figure-iframe descriptor-figure" src="figure/protein_sirm.html"></iframe>
         <figcaption class="embedded-3d-figure-caption">
-            Figure 2: A figure depicting how to calculate the SIRM 3D shape descriptor.
+            Figure 4: A figure depicting how to calculate the SIRM 3D shape descriptor.
         </figcaption>
     </figure>
 
@@ -289,7 +289,7 @@
                  alt="symmetric KNN graph visualization">
         </div>
         <figcaption class="embedded-3d-figure-caption">
-            Figure 2: The left figure contains a directed, \(k\)-NN graph. Next to it are both a mutual and symmetric
+            Figure 5: The left figure contains a directed, \(k\)-NN graph. Next to it are both a mutual and symmetric
             one, which are
             derived from it.
         </figcaption>
@@ -531,70 +531,222 @@
     <h3>Graph Visualizations on the Protein Dataset</h3>
     <figure class="embedded-3d-figure">
         <div class="embedded-3d-figure-div">
-            <img class="embedded-3d-figure-img-split-2" src="figure/knn_graph_15_mutual_evrap_samp_3d_scomp_3d_sirm_3d.png"
+            <img class="embedded-3d-figure-img-split-2"
+                 src="figure/knn_graph_15_mutual_evrap_samp_3d_scomp_3d_sirm_3d.png"
                  alt="mutual KNN graph visualization">
-            <img class="embedded-3d-figure-img-split-2" src="figure/knn_graph_15_symmetric_evrap_samp_3d_scomp_3d_sirm_3d.png"
+            <img class="embedded-3d-figure-img-split-2"
+                 src="figure/knn_graph_15_symmetric_evrap_samp_3d_scomp_3d_sirm_3d.png"
                  alt="symmetric KNN graph visualization">
         </div>
         <figcaption class="embedded-3d-figure-caption">
-            Figure 2: Two \(k\)-NN graph visualizations
+            Figure 6: Two \(k\)-NN graph visualizations
         </figcaption>
     </figure>
     <p>
-        To begin, graph visualizations were generated using combined descriptors on the protein dataset. The clusters
-        showed
+        In the graph visualizations we were able to see that clusters showed
         varying levels of connectivity, with some tightly coupled and others sparsely connected. Interestingly, mutual
-        $k$-NN graphs appeared more reliable than symmetric ones at first glance. However, this observation was
+        \(k\)-NN graphs appeared more reliable than symmetric ones at first glance. However, this observation was
         challenged
-        by later findings. Mutual graphs had unconnected components that were not immediately visible in the
-        visualizations,
-        highlighting potential issues with the method's effectiveness.
+        by later findings. What we realized only later too was, that some graphs were not connected, mainly when using
+        the FPFH
+        descriptor.
     </p>
 
     <h3>Normalized Mutual Information (NMI) and Adjusted Rand Index (ARI)</h3>
     <p>
-        Next, we evaluated clustering quality using NMI and ARI scores. Unweighted graphs generally outperformed
-        weighted
-        ones, and symmetric $k$-NN graphs consistently achieved equal or better performance than mutual graphs, possibly
-        due
-        to the unconnected components in mutual graphs. The choice of $k$ in the $k$-NN graph was critical—values that
-        were
-        too low or too high led to poor results. The descriptors most consistently effective included the combined
-        model,
-        shell model, EVARP, SAMP3D, SIRM3D, and SCOMP3D. The results of all of them were sensible to the choice of
-        $k$-NN
-        graph hyperparameters.
+        The clustering evaluation provided a lot of interesting information. It provided useful insights not only when
+        it
+        comes to choosing the best descriptor, but also what type of \(k\)-NN graph is most reliable for our use case.
+        First of all, we could see that unweighted graphs outperformed weighted ones in every single test case.
+    </p>
+    <figure class="embedded-3d-figure">
+        <div class="embedded-3d-figure-div">
+            <img class="embedded-3d-figure-img-split-2"
+                 src="figure/unweighted_symmetric_knn_nmi_ari_k5_polished.png"
+                 alt="unweighted symmetric KNN graph clustering performance">
+            <img class="embedded-3d-figure-img-split-2"
+                 src="figure/weighted_symmetric_knn_nmi_ari_k5_polished.png"
+                 alt="weighted symmetric KNN graph clustering performance">
+        </div>
+        <figcaption class="embedded-3d-figure-caption">
+            Figure 7: Example comparison between weighted and unweighted graphs
+        </figcaption>
+    </figure>
+    <p>
+        Another useful observation when it comes to deciding which type of graph is best, is that symmetric ones
+        mostly achieve better performance than mutual ones, though not in all cases. When it comes to the highest
+        achieved
+        performance across all test cases however, symmetric \(k\)-NN graphs prove to be the best choice.
+    </p>
+    <figure class="embedded-3d-figure">
+        <div class="embedded-3d-figure-div">
+            <img class="embedded-3d-figure-img-split-2"
+                 src="figure/unweighted_mutual_knn_nmi_ari_k15_polished.png"
+                 alt="unweighted mutual KNN graph clustering performance">
+            <img class="embedded-3d-figure-img-split-2"
+                 src="figure/unweighted_symmetric_knn_nmi_ari_k15_polished.png"
+                 alt="unweighted symmetric KNN graph clustering performance">
+        </div>
+        <figcaption class="embedded-3d-figure-caption">
+            Figure 8: Example comparison between mutual and symmetric graphs
+        </figcaption>
+    </figure>
+    <p>
+        The last useful information gained from this comparison is he choice of \(k\) when computing the graph,
+        as too low and too high values led to poor results. When it comes to which descriptors most consistently
+        provided effective results
+        it is difficult to make a decision. Both the shell model, as well as EVARP seem to be good choices mostly,
+        however
+        all of them were sensible to the choice of \(k\)-NN graph hyperparameters.
     </p>
 
     <h3>Ratio and Normalized Cut</h3>
     <p>
         For further analysis, we examined Ratio and Normalized Cut metrics. Mutual graphs outperformed symmetric ones in
-        these tests, despite their connectivity issues. Certain descriptors, such as EVARP, the shell model, the sector
-        model, and the combined model, stood out for their effectiveness. Interestingly, most of the relevant
-        information
-        was captured in just two dimensions. However, only a subset of descriptors, including the shell model,
-        demonstrated
-        rotation invariance—a highly desirable property for 3D descriptors.
+        these tests.
+    </p>
+    <figure class="embedded-3d-figure">
+        <div class="embedded-3d-figure-div">
+            <img class="embedded-3d-figure-img-split-2"
+                 src="figure/symmetric_ratio_normalized_cut_per_k.png"
+                 alt="symmetric KNN graph cut performance">
+            <img class="embedded-3d-figure-img-split-2"
+                 src="figure/mutual_ratio_normalized_cut_per_k.png"
+                 alt="mutual KNN graph clustering performance">
+        </div>
+        <figcaption class="embedded-3d-figure-caption">
+            Figure 9: Example comparison between mutual and symmetric graph cuts
+        </figcaption>
+    </figure>
+    <p>
+        To be fair, though, this comparison is unfair to make. Mutual graphs will have less connections by design.
+        Since these measures are highly sensitive to the number of edges, this comparison is biased towards mutual
+        graphs.
+    </p>
+    <figure class="embedded-3d-figure">
+        <div class="embedded-3d-figure-div">
+            <img class="embedded-3d-figure-img-split-2"
+                 src="figure/symmetric_ratio_normalized_cut_per_k.png"
+                 alt="symmetric KNN graph cut performance">
+            <img class="embedded-3d-figure-img-split-2"
+                 src="figure/symmetric_ratio_normalized_cut_per_k_rotated.png"
+                 alt="symmetric KNN graph clustering performance">
+        </div>
+        <figcaption class="embedded-3d-figure-caption">
+            Figure 10: Example comparison with rotated objects in the dataset
+        </figcaption>
+    </figure>
+    <p>
+        Descriptors, such as EVARP, the shell model, the sector model, and the combined model, stood out for their
+        effectiveness. Interestingly though, this observation shifted when we added randomly rotated objects taken from
+        the
+        datasets to the test case. Here, the combined model and the sector model had much worse performance, while other
+        ones,
+        such as EVARP, the shell model, SIRM3D or SAMP3D were able to produce the same results as before. This highly
+        indicates
+        that these models are rotation-invariant, which can be a desirable property in many use cases, such as protein
+        clustering.
+    </p>
+    <figure class="embedded-3d-figure">
+        <div class="embedded-3d-figure-div">
+            <img class="embedded-3d-figure-img-no-split"
+                 src="figure/symmetric_ratio_normalized_cut_reduced_d.png"
+                 alt="symmetric KNN graph cut performance">
+        </div>
+        <figcaption class="embedded-3d-figure-caption">
+            Figure 11: Example comparison with reduced dimensionality
+        </figcaption>
+    </figure>
+    <p>
+        We could also show that most of the information is carried in just a very small subset of the dimensions. The
+        results showed that Normalized and Ratio Cut values remained consistent when using two or more principal
+        components.
     </p>
 
     <h3>Runtime Performance</h3>
+    <figure class="embedded-3d-figure">
+        <div class="embedded-3d-figure-div">
+            <img class="embedded-3d-figure-img-no-split"
+                 src="figure/runtime_logy.png"
+                 alt="runtime plot">
+        </div>
+        <figcaption class="embedded-3d-figure-caption">
+            Figure 12: Runtime plot of the shape descriptors with logarithmic y-axis
+        </figcaption>
+    </figure>
     <p>
         When measuring computational efficiency, EVARP, the shell model, and the sector model were the most efficient.
         SAMP3D, SIRM3D, and the combined model performed slightly slower, while SCOMP3D and PFH were the slowest among
-        the
-        tested descriptors. These results highlight a trade-off between computational efficiency and descriptor
-        complexity.
+        the tested descriptors.
     </p>
 
     <h3>Enantiomer Test (Mirroring)</h3>
     <p>
-        Finally, we conducted an enantiomer test to assess mirror invariance. Notably, the FPFH descriptor was excluded
-        from
-        this test due to its poor clustering performance and slow runtime, making it unsuitable for these use cases. All
-        our
-        descriptors, including the shell model, exhibited mirror invariance, although this property is not always
-        desirable.
-        Further tests are recommended to refine the analysis of the remaining descriptors.
+        Finally, we tested whether the descriptors could differentiate between mirrored data points. This property is
+        of interest to us, since mirrored chemical compounds have very similar 3D shape, but potentially different
+        functionality.
+        Notably, the FPFH descriptor was excluded from this test due to its poor clustering performance and slow
+        runtime,
+        proving unsuitable for this use case.
+    </p>
+    <figure class="embedded-3d-figure">
+        <div class="embedded-3d-figure-div">
+            <img class="embedded-3d-figure-img-no-split"
+                 src="figure/evarp_predicted_vs_true_clustering_mirrored.png"
+                 alt="comparison plot between true labeling and predicted one on mirrored data">
+        </div>
+        <figcaption class="embedded-3d-figure-caption">
+            Figure 13: Comparison plot between true labeling and predicted one on mirrored data
+        </figcaption>
+    </figure>
+    <p>
+        Interestingly, none of the descriptors were able to differentiate these points. They were not only not able to
+        do so,
+        but actually seemed completely mirror-invariant.
+    </p>
+    <figure class="embedded-3d-figure">
+        <div class="embedded-3d-figure-div">
+            <img class="embedded-3d-figure-img-no-split"
+                 src="figure/scatterplot_matrix_sirm_3d_true_labeling.png"
+                 alt="comparison plot between true labeling and predicted one on mirrored data">
+        </div>
+        <figcaption class="embedded-3d-figure-caption">
+            Figure 14: Descriptor values for two clusters that contain mirrored objects. More specifically, cluster -7 is
+            mirrored across the
+            y-axis.
+        </figcaption>
+    </figure>
+    <p>
+        The descriptors values for both the true as well as mirrored data points had exactly the same values. We will
+        have a further look at this
+        in the next section.
+    </p>
+
+    <h2>Conclusion</h2>
+
+    <p>
+        In this work, we set out to evaluate whether 3D shape descriptors can effectively cluster proteins and determine
+        which descriptors perform best. In the process we have presented a work flow of how to evaluate these questions
+        and also provided some thoughts about how to interpret the implications of the output.
+    </p>
+
+    <p>
+        We utilized protein tertiary structures as input and tested various descriptors, including EVARP, SAMP3D,
+        SCOMP3D, and SIRM3D, using \(k\)-Nearest Neighbor graphs and spectral clustering.
+    </p>
+
+    <p>
+        Our analysis highlighted that descriptors such as <strong>EVARP</strong> and the <strong>shell model</strong> consistently
+        exhibited
+        strong clustering performance, balancing precision and runtime efficiency. However, challenges were noted in
+        handling certain data characteristics and certain object geometries. For instance, all descriptors struggled with mirrored
+        objects due to limitations in how they process structural features. In this category fall both EVARP and the shell
+        model.
+    </p>
+
+    <p>
+        This is one promising open question with the potential for improvements. As mentioned briefly, an extension of
+        SAMP3D could theoretically be a candidate for this task.
     </p>
 </main>
 </body>
