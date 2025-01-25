@@ -163,7 +163,8 @@ def compute_descriptors_from_file(file_name, rotate_random=False):
         df = pd.read_csv(file, index_col=0)
 
         for col in descriptor_list:
-            df[col] = df[col].apply(lambda x: ast.literal_eval(x) if pd.notnull(x)  else x)
+            if col in df.columns:
+                df[col] = df[col].apply(lambda x: ast.literal_eval(x) if pd.notnull(x)  else x)
 
         return df
     else:
