@@ -5,10 +5,9 @@ html {
 
 .container {
     max-width: 1140px;
-    margin: 0 auto;
+    margin: 0 auto 200px auto;
     padding: 0 20px;
     width: 100%;
-    border: 1px solid black;
 }
 
 .embedded-3d-figure {
@@ -59,4 +58,13 @@ html {
 .embedded-3d-figure-caption {
     text-align: center;
     max-width: 780px;
+}
+
+.links {
+    text-decoration: none;
+    color: #436436;
+}
+
+.links:hover {
+    text-decoration: underline;
 }
