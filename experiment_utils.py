@@ -61,7 +61,7 @@ def compute_knn(data_df, descriptor_list=None, variant='directed', mode='connect
 
     return graph
 
-def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, title, colors=None, log_y=False):
+def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, title, colors=None, log_y=False, explicit_y=-1):
     linestyles = [('.', 'solid'), ('o', 'dotted'), ('^', 'dashed'), ('s', 'dashdot'), ('o', 'solid'), ('.', 'dotted'),
                   ('s', 'dashed'), ('^', 'dashdot')]
 
@@ -92,8 +92,12 @@ def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, 
     if log_y:
         ax.set_yscale('log')
     else:
-        max_y = max(i for v in data_dict.values() for i in v)
-        ax.set_ylim(bottom=0, top=max_y * 1.2)
+        if explicit_y != -1:
+            max_y = explicit_y
+        else:
+            max_y = max(i for v in data_dict.values() for i in v)
+            max_y = max_y * 1.2
+        ax.set_ylim(bottom=0, top=max_y)
 
     ax.set_facecolor('#FFFFFF')
 
@@ -109,6 +113,7 @@ def plot_evaluation(ax, descriptor_list, data_dict, x_values, x_label, y_label, 
     ax.set_xlim(np.min(x_values), np.max(x_values))
 
     ax.grid(color='#666666', linestyle='--', linewidth=0.7)
+
 
 def create_rotation_matrix(rng):
     theta_x = rng.uniform(0, 2 * np.pi)
@@ -135,6 +140,7 @@ def create_rotation_matrix(rng):
 
     return r_z @ r_y @ r_x
 
+
 def randomly_rotate_point_clouds(point_clouds):
     rng = np.random.default_rng(seed=42)
 
@@ -151,6 +157,7 @@ def randomly_rotate_point_clouds(point_clouds):
             rotated_pcs.append(np.dot(pc, rotation_matrix.T))
 
     return rotated_pcs
+
 
 def compute_descriptors_from_file(file_name, rotate_random=False):
     descriptor_list = [
@@ -193,8 +200,6 @@ def compute_descriptors_from_file(file_name, rotate_random=False):
         df.to_csv(file)
 
         return df
-
-
 
 
 def compute_ratio_cut(adj_list, clusters):
