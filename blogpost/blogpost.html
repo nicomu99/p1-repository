@@ -32,9 +32,9 @@
         they will be used as a basis for the clustering. <i>k</i>-NN graphs help model relationships between data points
         by
         connecting them to their closest neighbors as some sort of preprocessing step in the clustering.
-        The clustering itself will be performed using spectral clustering to analyze the clustering performance of
-        different 3D shape descriptors. while spectral clustering
-        identifies groups within these graphs based on structural similarities. By combining these techniques, we aim to
+        The clustering itself will be performed using spectral clustering to analyze how well 3D shape descriptors can
+        model similarities between point clouds.
+        By combining these techniques, we aim to
         evaluate the effectiveness of various descriptors and provide insights into their suitability for clustering
         protein datasets.
     </p>
@@ -68,21 +68,21 @@
         sequence and atomic interactions. Whats more is the fact, that this shape directly correlates with a protein's
         function. We can therefore try to search similar proteins just by their shape and assume that their functions
         must be
-        similar as well. To evaluate their shape, these so called 3D shape descriptors will be used.
+        similar as well.
     </p>
 
     <h2>
-        3D Shape Descriptors? What are these things?
+        3D Shape Descriptors? What's that?
     </h2>
 
     <p>
         A 3D shape descriptor is a tool that helps us represent the 3D structure of an object in a lower dimensional
         space. Usually, these shapes
-        come in the form of point clouds. A point in this example is simply a 3D coordinate in a Cartesian coordinate
-        space. Just imagine how many points
-        would be needed to accurately determine the outline of an object. At least a few thousand. We can already
-        imagine that running a clustering algorithm
-        on objects with so many dimensions is not a feasible solution. Instead, we first reduce the object to a shape
+        come in the form of point clouds, which is simply a set of Cartesian 3D coordinates outlining some object. The
+        plots in the introduction already contained two such point clouds.
+        Just imagine how many points
+        would be needed to accurately represent the outline of an object. At least a few thousand. For state-of-the-art
+        clustering algorithms, this is just too much. Instead, we first reduce the object to a shape
         descriptor. But how? Let's look at a few examples: EVARP, SAMP3D, SCOMP3D, and SIRM3D.
     </p>
 
@@ -122,23 +122,25 @@
         result. Following this preprocessing step, the object is partitioned into exactly \(s\) number of equally spaced
         segments along each axis, which is the only user selected hyperparameter of this method. Note that this
         segmentation is processed per axis, and not combined. We therefore segment the object into into \(2 \cdot s\)
-        segments, not \(s \cdot s\) ones. For a better understand of how one such segmentation per axis looks like,
+        segments, not \(s \cdot s\) ones. For a better understanding of how one such segmentation per axis looks like,
         please refer to the figure. Choose one particular subplane view and turn off all segmentations, expect for one
         that corresponds
-        to the same subplane view, and also turn off the object itself. As for the following mathematical definition, a
+        to the same subplane view. Also turn off the object itself. You can now see how this partitioning looks like.
+        As for the mathematical definition, a
         segment is denoted by \(x_{i, j}\), where \(i \in {1, 2}\) corresponds to the axis and
         \(j\) is the index of the segment.
     </p>
 
     <p>
-        After creating the segmentation, for each segment, pick the 5\% highest and lowest values (These points are
-        highlighted in the figure as well!), which but along the opposing axis of this hyperplane.
-        Calculate the median for them and subtract the lower median from the higher one. Mathematically speaking, this
+        After creating the segmentation, for each segment, pick the 5 % highest and lowest values (These points are
+        highlighted in the figure as well!) along the opposing axis of this hyperplane.
+        Calculate the median for each group and subtract the lower median from the higher one. Mathematically speaking,
+        this
         looks like this:
     </p>
 
     \[
-    a_{x_{i, j}} = |max(x_{i, j}) - min(x_{i, j})|
+    a_{x_{i, j}} = |median(x_{i, j}^{max}) - min(x_{i, j}^{min})|
     \]
 
     <p>
@@ -146,7 +148,7 @@
     </p>
 
     \[
-    a(x_i) = \sum_{j=1}^{s} x_{i, j} \
+    a(x_i) = \sum_{j=1}^{s} a_{x_{i, j}} \
     \]
 
     <p>
@@ -156,8 +158,8 @@
     \[
     v_{SAMP} =
     \begin{pmatrix}
-    \max_{i \in \{1, 2\}}a(x_i) \\
-    \min_{i \in \{1, 2\}}a(x_i)
+    \max a(x_i) \\
+    \min a(x_i)
     \end{pmatrix}
     \]
 
@@ -187,23 +189,27 @@
     </figure>
 
     <p>
-        This method again exhibits the use of a 2D projection of the point clouds. We divide the 2D projection into a
-        grid
-        with \(c\) cells, which is a hyperparameter of the method. The further definition is quite simple:
+        In this method, we again process the object by taking into consideration each possible
+        combination of axes. We divide each subspace into a grid with \(c\) cells, which is a hyperparameter of the
+        method. Please refer to the figure for a better understanding of this process.
+    </p>
+
+    <p>
+        Next, we compute the area of the convex hull of each subspace, as well as the area of all cells that contain at
+        least one
+        data point. In mathematical terms, we can write this like so:
     </p>
 
     \[
-    v_{SCOMP} = \frac{vol_{conv}}{vol_{grids}}
+    v_{ij} = \frac{vol\_conv_{ij}}{vol\_grids_{ij}}
     \]
 
     <p>
-        where \(vol_{grids}\) is the area of all cells that contain at least one point and \(vol_{conv}\) is the volume
-        of
-        the
-        convex hull. We can again extend this notion into 3D by applying the above definition on each possible 2D
-        combination of axes and concatenating the resulting 3 values into a feature vector. Please have a look at the
-        figure
-        for further details. It shows both the girds, as well as the convex hull for each projection.
+        where \(vol\_conv_{ij}\) is the area of all cells that contain at least one point in the subspace \(ij\) and
+        \(vol_{conv}\) is the volume of the
+        convex hull. The figure again shows the different subspaces and their corresponding convex hulls. Simply
+        concatenate
+        all the \(v_{ij}\) values into a single feature vector.
     </p>
     <p>
 
@@ -224,27 +230,21 @@
     </figure>
 
     <p>
-        Another method using Factor Analysis and Varimax Rotation with a straightforward definition:
+        This method is very similar to SCOMP3D, but we use the area of the bounding box as denominator instead:
     </p>
     \[
-    v_{SIRM} = \frac{vol_{conv}}{vol_{bound}}
+    v_{ij} = \frac{vol\_conv_{ij}}{vol\_bound_{ij}}
     \]
 
     <p>
-        \(vol_{bound}\) is the area of the bounding box of the 2D projection, whereas \(vol_{conv}\) again represents
-        the
-        volume
-        of the convex hull. An extension into 3D follows as explained <a href="#scomp">here</a>.
-    </p>
-    <p>
-        As outlined before, we can neglect the influence of the Factor Analysis on the time complexity again. The
-        calculation of \(vol_{bound}\) exhibits a complexity of \(O(m)\), thus the total complexity is \(O(nm)\).
+        Again concatenate all 3 resulting values to form the final descriptor. It exhibits a total complexity is
+        \(O(nm)\).
     </p>
 
     <h2>Next step: \(k\)-NN graphs</h2>
 
     <p>
-        We now know how to create a representation of a 3D shape, that lets us compare them faster, so far so good. As
+        We now know how to create a representation of a 3D shape, that lets us compare them faster. So far so good. As
         already mentioned earlier, we will connect the descriptors of the individual point clouds into \(k\)-NN graphs
         as
         a further step before clustering them. We therefore want to establish a few basics about these graphs.
@@ -259,9 +259,7 @@
     </p>
 
     <p>
-        The basic definition of a \(k\)-NN graph is the following:
-        The dataset is represented as a <strong>directed</strong> graph
-        \(G = (V, E)\), where:
+        A \(k\)-NN graph is defined as a <strong>directed</strong> graph \(G = (V, E)\), where:
     </p>
 
     <ul>
@@ -331,7 +329,7 @@
     <p>
         These different types of \(k\)-NN graphs provide flexibility in analyzing datasets, whether we want strict
         relationships (mutual), more inclusive ones (symmetric), or weighted connections that factor in the strength of
-        similarities. By choosing the right type, we can tailor the graph to the needs of specific tasks, such as
+        similarities. By choosing the right type, we can tailor the graph to the needs of a specific task, such as
         clustering or exploring protein similarities. In our case, the last step is to perform <strong>spectral
         clustering</strong>.
     </p>
@@ -342,17 +340,15 @@
 
     <p>
         So we want to asses both the quality of the final clustering, as well as the \(k\)-NN graphs. This section
-        introduces the tools we can use to perform this evaluation.
+        introduces the tools we can use to perform this assessment: evaluation metrics.
     </p>
 
     <p>
         Let's start with the <strong>Normalized Mutual Information (NMI)</strong>. It is a measure of the agreement
-        between two clusterings,
-        \(C_1\) and \(C_2\).
-        What
+        between the true class labels and the predicted one. What
         is important for the further understanding of this blog is the fact, that the value of the measure lies
         within
-        the range \([0, 1]\). A value close to \(1\) indicates a high degree of agreement between the clusterings, while
+        the range \([0, 1]\). A value close to \(1\) indicates a high degree of agreement between the labels, while
         a
         value near \(0\) suggests little to no agreement. We are therefore interested in a value closer to 1.
     </p>
@@ -364,10 +360,13 @@
     </p>
 
     <p>
-        The <strong>Normalized Cut metric</strong> is used to evaluate the quality of a graph cut by considering the
-        cost of the cut
+        These last two measures focus on label agreement. As for the quality of the graphs, we can use the
+        following two.
+        The first one is the <strong>Normalized Cut metric</strong>, used to evaluate the quality of a graph cut by
+        considering the
+        cost of a cut
         relative
-        to the total edge weights in the resulting partitions. Its mathematical definition is:
+        to the total edge weights of the partitions. Its mathematical definition is:
     </p>
 
     \[
@@ -395,7 +394,7 @@
     </p>
 
     <p>
-        The final metric is the <strong>Ratio Cut</strong>. Another approach to evaluating graph partitions, focusing on
+        The second metric is the <strong>Ratio Cut</strong>. Another approach to evaluating graph partitions, focusing on
         the edge weights between
         clusters relative to their sizes. For a set of clusters \(A_1, A_2, \dots, A_k\), the ratio cut value is defined
         as:
@@ -428,7 +427,7 @@
     <p>
         Now that we have all the specifics we need, we want to present a framework for evaluating 3D shape descriptors.
         We start by simply visualizing the \(k\)-NN graphs with node coloring based on the true labels.
-        This provides a qualitative evaluation, so we can not really quantize how well the result looks. It just gives
+        This provides a qualitative evaluation. It just gives
         us a general idea if the results look reasonable. If the graph looks completely wrong, either our implementation
         is
         incorrect, or the descriptors are just not the right choice for the task at hand.
@@ -492,8 +491,8 @@
     <p>
         In this section, we will present the results of the experiments we conducted on the shape descriptors introduced
         above. We employed two datasets: one that contains proteins, which are selected from the
-        <a href="https://www.rcsb.org/">RCSB Protein Database</a> and the
-        <a href="https://www.cim.mcgill.ca/~shape/benchMark/">McGill shape benchmark</a>, as test cases.
+        <a class="links" href="https://www.rcsb.org/">RCSB Protein Database</a> and the
+        <a class="links" href="https://www.cim.mcgill.ca/~shape/benchMark/">McGill shape benchmark</a>, as test cases.
     </p>
 
     <p>
@@ -505,11 +504,11 @@
         picked
         each element that matches one of the 9 reference proteins by more than 20 \%. For more information about the
         API,
-        please have a look at the documentation. The relevant sections are <a
-            href="https://search.rcsb.org/index.html\#search-api">RCSB PDB Search</a>,
-        <a href="https://search.rcsb.org/index.html\#search-example-3">3D-shape Search</a> and
-        <a href="https://www.rcsb.org/docs/search-and-browse/advanced-search/structure-similarity-search">Structure
-            Similarity Search</a>.
+        please have a look at the documentation. The relevant sections are
+        <a class="links" href="https://search.rcsb.org/index.html\#search-api">RCSB PDB Search</a>,
+        <a class="links" href="https://search.rcsb.org/index.html\#search-example-3">3D-shape Search</a> and
+        <a class="links" href="https://www.rcsb.org/docs/search-and-browse/advanced-search/structure-similarity-search">Structure
+            Similarity Search</a>. The final dataset had about 250 objects with cluster sizes ranging from 1 to 100.
     </p>
 
     <p>
@@ -523,9 +522,8 @@
         We will now have a look at what implications can be made from the evaluation routine we have
         described
         above, as well as present the performance of our descriptors in comparison to the
-        <a href="https://cdn.aaai.org/ISMB/1999/ISMB99-005.pdf">shell model, combined model and sector model</a>, as
-        well as
-        <a href="https://pcl.readthedocs.io/projects/tutorials/en/master/fpfh_estimation.html">FPFH</a>.
+        <a class="links" href="https://cdn.aaai.org/ISMB/1999/ISMB99-005.pdf">shell model, combined model and sector model</a>, and
+        <a class="links" href="https://pcl.readthedocs.io/projects/tutorials/en/master/fpfh_estimation.html">FPFH</a>.
     </p>
 
     <h3>Graph Visualizations on the Protein Dataset</h3>
@@ -592,7 +590,7 @@
         </figcaption>
     </figure>
     <p>
-        The last useful information gained from this comparison is he choice of \(k\) when computing the graph,
+        Finally, the choice of \(k\) when computing the graph is also an important factor,
         as too low and too high values led to poor results. When it comes to which descriptors most consistently
         provided effective results
         it is difficult to make a decision. Both the shell model, as well as EVARP seem to be good choices mostly,
@@ -638,9 +636,8 @@
     </figure>
     <p>
         Descriptors, such as EVARP, the shell model, the sector model, and the combined model, stood out for their
-        effectiveness. Interestingly though, this observation shifted when we added randomly rotated objects taken from
-        the
-        datasets to the test case. Here, the combined model and the sector model had much worse performance, while other
+        effectiveness. Interestingly though, this observation shifted when we randomly rotated the objects in the
+        datasets. Here, the combined model and the sector model had much worse performance, while other
         ones,
         such as EVARP, the shell model, SIRM3D or SAMP3D were able to produce the same results as before. This highly
         indicates
@@ -676,7 +673,7 @@
     </figure>
     <p>
         When measuring computational efficiency, EVARP, the shell model, and the sector model were the most efficient.
-        SAMP3D, SIRM3D, and the combined model performed slightly slower, while SCOMP3D and PFH were the slowest among
+        SAMP3D, SIRM3D, and the combined model performed slightly slower, while SCOMP3D and FPFH were the slowest among
         the tested descriptors.
     </p>
 
@@ -685,9 +682,6 @@
         Finally, we tested whether the descriptors could differentiate between mirrored data points. This property is
         of interest to us, since mirrored chemical compounds have very similar 3D shape, but potentially different
         functionality.
-        Notably, the FPFH descriptor was excluded from this test due to its poor clustering performance and slow
-        runtime,
-        proving unsuitable for this use case.
     </p>
     <figure class="embedded-3d-figure">
         <div class="embedded-3d-figure-div">
@@ -711,22 +705,22 @@
                  alt="comparison plot between true labeling and predicted one on mirrored data">
         </div>
         <figcaption class="embedded-3d-figure-caption">
-            Figure 14: Descriptor values for two clusters that contain mirrored objects. More specifically, cluster -7 is
+            Figure 14: Descriptor values for two clusters that contain mirrored objects. More specifically, cluster -7
+            is
             mirrored across the
             y-axis.
         </figcaption>
     </figure>
     <p>
-        The descriptors values for both the true as well as mirrored data points had exactly the same values. We will
-        have a further look at this
-        in the next section.
+        The descriptor values for both the true as well as mirrored data points had exactly the same values. If we further look
+        into the descriptors it is easy to see that they actually are mirror-invariant.
     </p>
 
     <h2>Conclusion</h2>
 
     <p>
         In this work, we set out to evaluate whether 3D shape descriptors can effectively cluster proteins and determine
-        which descriptors perform best. In the process we have presented a work flow of how to evaluate these questions
+        which descriptors perform best. In the process we have presented a workflow of how to evaluate these questions
         and also provided some thoughts about how to interpret the implications of the output.
     </p>
 
@@ -736,17 +730,16 @@
     </p>
 
     <p>
-        Our analysis highlighted that descriptors such as <strong>EVARP</strong> and the <strong>shell model</strong> consistently
+        Our analysis highlighted that descriptors such as <strong>EVARP</strong> and the <strong>shell model</strong>
+        consistently
         exhibited
         strong clustering performance, balancing precision and runtime efficiency. However, challenges were noted in
-        handling certain data characteristics and certain object geometries. For instance, all descriptors struggled with mirrored
-        objects due to limitations in how they process structural features. In this category fall both EVARP and the shell
+        handling certain data characteristics and certain object geometries. For instance, all descriptors struggled
+        with mirrored
+        objects due to limitations in how they process structural features. In this category fall both EVARP and the
+        shell.
+        This is one promising open question with the potential for improvements.
         model.
-    </p>
-
-    <p>
-        This is one promising open question with the potential for improvements. As mentioned briefly, an extension of
-        SAMP3D could theoretically be a candidate for this task.
     </p>
 </main>
 </body>
