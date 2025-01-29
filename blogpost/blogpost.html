@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -10,737 +9,875 @@
     <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body class="container">
-<main>
-    <h1>
-        Clustering of Proteins using 3D Shape Descriptors
-    </h1>
-
-    <p>
-        The central questions we are trying to solve in this blog are, whether and how we can cluster proteins using 3D
-        shape
-        descriptors and how we can assess and compare the performance of different 3D shape descriptors to determine
-        the most suitable one for the task. We will explore these questions by first looking at what tools are at out
-        disposal,
-        such as 3D shape descriptors and performance measures. Next, we will present a suitable workflow to analyze the
-        performance
-        of the descriptors.
-    </p>
-
-    <p>
-        In this process, we will also have a quick look at <i>k</i>-Nearest Neighbor (<i>k</i>-NN) graphs and their
-        variants, as
-        they will be used as a basis for the clustering. <i>k</i>-NN graphs help model relationships between data points
-        by
-        connecting them to their closest neighbors as some sort of preprocessing step in the clustering.
-        The clustering itself will be performed using spectral clustering to analyze how well 3D shape descriptors can
-        model similarities between point clouds.
-        By combining these techniques, we aim to
-        evaluate the effectiveness of various descriptors and provide insights into their suitability for clustering
-        protein datasets.
-    </p>
-
-    <figure class="embedded-3d-figure">
-        <div class="embedded-3d-figure-div">
-            <iframe class="embedded-3d-figure-iframe silhouette-figure"
-                    src="figure/protein_silhouette_3d.html"></iframe>
-            <iframe class="embedded-3d-figure-iframe silhouette-figure" src="figure/table_silhouette_3d.html"></iframe>
+<main class="split-wrapper">
+    <section class="menu">
+        <div class="menu-item">
+            <a href="#top">Top</a>
         </div>
-        <figcaption class="embedded-3d-figure-caption">
-            Figure 1: Two example objects from the datasets used in this blog. The left object is a hemoglobin protein.
-            The right one
-            a table.
-        </figcaption>
-    </figure>
-
-    <p>
-        Furthermore, we will introduce two datasets that will be used for evaluation. The first one is the so called
-        McGill
-        shape benchmark dataset. The second one contains protein data, that we have chosen ourselves through a web API.
-    </p>
-
-    <p>
-        The reason why particularly proteins are of interest to us is, that they are essential molecules that play
-        critical roles in cellular structure and function. From acting as enzymes to being antibodies against
-        potentially harmful diseases,
-        their functions in our bodies are sheer endless. When it comes to their 3D shapes, or tertiary structures, they
-        are formed when amino
-        acid chains fold into stable configurations determined by their
-        sequence and atomic interactions. Whats more is the fact, that this shape directly correlates with a protein's
-        function. We can therefore try to search similar proteins just by their shape and assume that their functions
-        must be
-        similar as well.
-    </p>
-
-    <h2>
-        3D Shape Descriptors? What's that?
-    </h2>
-
-    <p>
-        A 3D shape descriptor is a tool that helps us represent the 3D structure of an object in a lower dimensional
-        space. Usually, these shapes
-        come in the form of point clouds, which is simply a set of Cartesian 3D coordinates outlining some object. The
-        plots in the introduction already contained two such point clouds.
-        Just imagine how many points
-        would be needed to accurately represent the outline of an object. At least a few thousand. For state-of-the-art
-        clustering algorithms, this is just too much. Instead, we first reduce the object to a shape
-        descriptor. But how? Let's look at a few examples: EVARP, SAMP3D, SCOMP3D, and SIRM3D.
-    </p>
-
-    <h3>
-        Explained Variance Ratio of Principal Components (EVARP)
-    </h3>
-
-    <p>
-        In this method, the data is reduced to 3 components using standard Principal Component Analysis. The descriptor
-        itself is the ratio of explained variance in the 3 computed principal components of a single point cloud. Thus,
-        per point cloud, a descriptor with 3 elements is created.
-    </p>
-
-    <p>
-        The time complexity of this method is \(O(md^2 + d^3)\), where \(m\) is the number of points in each point cloud
-        and
-        \(d\) is the dimensionality of the point cloud. Note that \(d\) is constant, so the time complexity simplifies
-        to
-        \(O(m)\). For the whole dataset, the time complexity of EVARP is \(O(nm)\).
-    </p>
-
-    <h3>
-        Simplified Asymmetry Measure Based on Projections in 3D (SAMP3D)
-    </h3>
-
-    <figure class="embedded-3d-figure">
-        <iframe class="embedded-3d-figure-iframe descriptor-figure" src="figure/protein_samp.html"></iframe>
-        <figcaption class="embedded-3d-figure-caption">
-            Figure 2: A figure depicting how to calculate the SAMP 3D shape descriptor.
-        </figcaption>
-    </figure>
-
-    <p>
-        The 2D version of this descriptor initially reduces each point cloud individually into a 2D matrix using Factor
-        Analysis with Varimax rotation and scales the points to a range between \(0\) and \(1\), to produce a size
-        independent
-        result. Following this preprocessing step, the object is partitioned into exactly \(s\) number of equally spaced
-        segments along each axis, which is the only user selected hyperparameter of this method. Note that this
-        segmentation is processed per axis, and not combined. We therefore segment the object into into \(2 \cdot s\)
-        segments, not \(s \cdot s\) ones. For a better understanding of how one such segmentation per axis looks like,
-        please refer to the figure. Choose one particular subplane view and turn off all segmentations, expect for one
-        that corresponds
-        to the same subplane view. Also turn off the object itself. You can now see how this partitioning looks like.
-        As for the mathematical definition, a
-        segment is denoted by \(x_{i, j}\), where \(i \in {1, 2}\) corresponds to the axis and
-        \(j\) is the index of the segment.
-    </p>
-
-    <p>
-        After creating the segmentation, for each segment, pick the 5 % highest and lowest values (These points are
-        highlighted in the figure as well!) along the opposing axis of this hyperplane.
-        Calculate the median for each group and subtract the lower median from the higher one. Mathematically speaking,
-        this
-        looks like this:
-    </p>
-
-    \[
-    a_{x_{i, j}} = |median(x_{i, j}^{max}) - min(x_{i, j}^{min})|
-    \]
-
-    <p>
-        Finally, for each axis, the asymmetry measures are summed up
-    </p>
-
-    \[
-    a(x_i) = \sum_{j=1}^{s} a_{x_{i, j}} \
-    \]
-
-    <p>
-        and the feature vector is created by sorting the two resulting values in a decreasing order
-    </p>
-
-    \[
-    v_{SAMP} =
-    \begin{pmatrix}
-    \max a(x_i) \\
-    \min a(x_i)
-    \end{pmatrix}
-    \]
-
-    <p>
-        We can easily extend this method into 3D by taking into consideration each possible 2D axes combination. We
-        still
-        use Factor Analysis with varimax rotation, but do not reduce the point cloud to 2D. The above description is
-        therefore computed across each 2D axes combination, and the 3 outputs are concatenated. The final descriptor per
-        point cloud has 6 elements.
-    </p>
-
-    <p>
-        This method has time complexity of \(O(n \cdot(d^3 + m))\), though the dimensionality of the point clouds \(d\)
-        is
-        constant again, simplifying to \(O(nm)\).
-    </p>
-
-    <h3 id="scomp">
-        Simplified Concavity Measure Based on Projections in 3D (SCOMP3D)
-    </h3>
-
-    <figure class="embedded-3d-figure">
-        <iframe class="embedded-3d-figure-iframe descriptor-figure" src="figure/protein_scomp.html"></iframe>
-        <figcaption class="embedded-3d-figure-caption">
-            Figure 3: A figure depicting how to calculate the SCOMP 3D shape descriptor.
-        </figcaption>
-    </figure>
-
-    <p>
-        In this method, we again process the object by taking into consideration each possible
-        combination of axes. We divide each subspace into a grid with \(c\) cells, which is a hyperparameter of the
-        method. Please refer to the figure for a better understanding of this process.
-    </p>
-
-    <p>
-        Next, we compute the area of the convex hull of each subspace, as well as the area of all cells that contain at
-        least one
-        data point. In mathematical terms, we can write this like so:
-    </p>
-
-    \[
-    v_{ij} = \frac{vol\_conv_{ij}}{vol\_grids_{ij}}
-    \]
-
-    <p>
-        where \(vol\_conv_{ij}\) is the area of all cells that contain at least one point in the subspace \(ij\) and
-        \(vol_{conv}\) is the volume of the
-        convex hull. The figure again shows the different subspaces and their corresponding convex hulls. Simply
-        concatenate
-        all the \(v_{ij}\) values into a single feature vector.
-    </p>
-    <p>
-
-        The complexity of the convex hull calculation is \(O(m\) log \(m)\). The complexity of the calculation of
-        \(vol_{grids}\)
-        is \(O(m)\). We therefore have a combined time complexity of \(O(n \cdot (m\) log \(m)\).
-    </p>
-
-    <h3>
-        Simplified Rectangularity Measure in 3D (SIRM3D)
-    </h3>
-
-    <figure class="embedded-3d-figure">
-        <iframe class="embedded-3d-figure-iframe descriptor-figure" src="figure/protein_sirm.html"></iframe>
-        <figcaption class="embedded-3d-figure-caption">
-            Figure 4: A figure depicting how to calculate the SIRM 3D shape descriptor.
-        </figcaption>
-    </figure>
-
-    <p>
-        This method is very similar to SCOMP3D, but we use the area of the bounding box as denominator instead:
-    </p>
-    \[
-    v_{ij} = \frac{vol\_conv_{ij}}{vol\_bound_{ij}}
-    \]
-
-    <p>
-        Again concatenate all 3 resulting values to form the final descriptor. It exhibits a total complexity is
-        \(O(nm)\).
-    </p>
-
-    <h2>Next step: \(k\)-NN graphs</h2>
-
-    <p>
-        We now know how to create a representation of a 3D shape, that lets us compare them faster. So far so good. As
-        already mentioned earlier, we will connect the descriptors of the individual point clouds into \(k\)-NN graphs
-        as
-        a further step before clustering them. We therefore want to establish a few basics about these graphs.
-    </p>
-
-    <p>
-        A <strong>\(k\)-Nearest Neighbor (\(k\)-NN) graph</strong> is a way to represent relationships and similarities
-        between data
-        points in a dataset. It is a powerful tool used in clustering, classification, and other machine learning tasks
-        to identify which data points are “close” to each other based on some distance measure (e.g. the Euclidean
-        distance).
-    </p>
-
-    <p>
-        A \(k\)-NN graph is defined as a <strong>directed</strong> graph \(G = (V, E)\), where:
-    </p>
-
-    <ul>
-        <li> \(V\) is the set of nodes, with each node representing a data point.
-        <li> \(E\) is the set of edges, where an edge exists from node \(v_i\) to node \(v_j\) if \(v_j\) is one of the
-            \(k\)-nearest neighbors of \(v_i\).
-    </ul>
-
-    <p>
-        The parameter \(k\) controls how many neighbors each node is connected to, making it a critical factor in
-        defining the graph’s structure.
-    </p>
-
-    <h3>
-        Types of k-NN Graphs
-    </h3>
-
-    <figure class="embedded-3d-figure">
-        <div class="embedded-3d-figure-div">
-            <img class="embedded-3d-figure-img-split-3" src="figure/directed_knn_graph_knn_visualization.png"
-                 alt="directed KNN graph visualization">
-            <img class="embedded-3d-figure-img-split-3" src="figure/mutual_knn_graph_knn_visualization.png"
-                 alt="mutual KNN graph visualization">
-            <img class="embedded-3d-figure-img-split-3" src="figure/symmetric_knn_graph_knn_visualization.png"
-                 alt="symmetric KNN graph visualization">
+        <div class="menu-item">
+            <a href="#3d-shape-descriptors">3D Shape Descriptors?</a>
         </div>
-        <figcaption class="embedded-3d-figure-caption">
-            Figure 5: The left figure contains a directed, \(k\)-NN graph. Next to it are both a mutual and symmetric
-            one, which are
-            derived from it.
-        </figcaption>
-    </figure>
+        <div class="menu-item indent">
+            <a href="#evarp">EVARP</a>
+        </div>
+        <div class="menu-item indent">
+            <a href="#samp">SAMP</a>
+        </div>
+        <div class="menu-item indent">
+            <a href="#scomp">SCOMP</a>
+        </div>
+        <div class="menu-item indent">
+            <a href="#sirm">SIRM</a>
+        </div>
+        <div class="menu-item">
+            <a href="#knn-graphs">k-NN graphs</a>
+        </div>
+        <div class="menu-item indent">
+            <a href="#knn-types">Types of graphs</a>
+        </div>
+        <div class="menu-item indent">
+            <a href="#weighted-unweighted-knn-graphs">Weightedness</a>
+        </div>
+        <div class="menu-item">
+            <a href="#evaluation-metrics">Evaluation metrics</a>
+        </div>
+        <div class="menu-item">
+            <a href="#how-to-evaluate">How to evaluate?</a>
+        </div>
+        <div class="menu-item">
+            <a href="#protein-clustering">Clustering results</a>
+        </div>
+        <div class="menu-item indent">
+            <a href="#graph-viz">Graph viz</a>
+        </div>
+        <div class="menu-item indent">
+            <a href="#nmi-ari">NMI & ARI</a>
+        </div>
+        <div class="menu-item indent">
+            <a href="#ratio-normalized">Cut metrics</a>
+        </div>
+        <div class="menu-item indent">
+            <a href="#runtime">Runtime</a>
+        </div>
+        <div class="menu-item indent">
+            <a href="#enantiomer">Mirrored proteins</a>
+        </div>
+        <div class="menu-item">
+            <a href="#conclusion">Conclusion</a>
+        </div>
+    </section>
+    <section class="blog-post">
+        <h1 id="top">
+            Clustering of Proteins using 3D Shape Descriptors
+        </h1>
 
-    <p>
-        There are also extensions to this definition. A more restrictive version of the \(k\)-NN graph is the
-        <strong>mutual</strong>
-        \(k\)-NN graph, which only includes edges where the relationship is mutual. In this case, an edge exists
-        between
-        \(v_i\) and \(v_j\) only if \(v_j\) is one of \(v_i\)’s \(k\)-nearest neighbors and \(v_i\) is also one of
-        \(v_j\)’s \(k\)-nearest neighbors. This ensures that connections in the graph represent stronger, shared
-        relationships. From this definition we can also conclude that this is an <strong>undirected</strong> graph.
-    </p>
-
-    <p>
-        In contrast, the <strong>symmetric</strong> \(k\)-NN graph is slightly less restrictive. An edge exists between
-        \(v_i\)
-        and \(v_j\) if either \(v_j\) is one of \(v_i\)’s \(k\)-nearest neighbors or \(v_i\) is one of \(v_j\)’s
-        \(k\)-nearest neighbors. This is looser definition is again undirected.
-    </p>
-
-    <h3>
-        Weighted vs. Unweighted k-NN Graphs
-    </h3>
-
-    <p>
-        Another property of a \(k\)-NN graph is its edge weights. There are <strong>weighted</strong> and <strong>unweighted</strong>
-        graphs:
-    </p>
-
-    <ul>
-        <li> Weighted: Edges are assigned weights based on some measure. In our use case, the weight would be
-            the euclidean distance between the descriptors. A lower weight is therefore more desirable.
-        <li> Unweighted: All edges carry the same level of importance. Or in other words: Each edge weight has
-            the same value (e.g. 1).
-    </ul>
-
-    <p>
-        These different types of \(k\)-NN graphs provide flexibility in analyzing datasets, whether we want strict
-        relationships (mutual), more inclusive ones (symmetric), or weighted connections that factor in the strength of
-        similarities. By choosing the right type, we can tailor the graph to the needs of a specific task, such as
-        clustering or exploring protein similarities. In our case, the last step is to perform <strong>spectral
-        clustering</strong>.
-    </p>
-
-    <h2>
-        Evaluation Metrics
-    </h2>
-
-    <p>
-        So we want to asses both the quality of the final clustering, as well as the \(k\)-NN graphs. This section
-        introduces the tools we can use to perform this assessment: evaluation metrics.
-    </p>
-
-    <p>
-        Let's start with the <strong>Normalized Mutual Information (NMI)</strong>. It is a measure of the agreement
-        between the true class labels and the predicted one. What
-        is important for the further understanding of this blog is the fact, that the value of the measure lies
-        within
-        the range \([0, 1]\). A value close to \(1\) indicates a high degree of agreement between the labels, while
-        a
-        value near \(0\) suggests little to no agreement. We are therefore interested in a value closer to 1.
-    </p>
-
-    <p>
-        The <strong>Adjusted Rand Index (ARI)</strong> again is a similar measure. It ranges from
-        \(-1\) to \(1\), where values closer to \(1\) are more desirable, as they indicate strong agreement between the
-        clustering and the true labeling, \(0\) suggests random clustering, and negative values imply disagreement.
-    </p>
-
-    <p>
-        These last two measures focus on label agreement. As for the quality of the graphs, we can use the
-        following two.
-        The first one is the <strong>Normalized Cut metric</strong>, used to evaluate the quality of a graph cut by
-        considering the
-        cost of a cut
-        relative
-        to the total edge weights of the partitions. Its mathematical definition is:
-    </p>
-
-    \[
-    \text{Ncut}(A_1, A_2, \dots, A_k) = \sum_{i=1}^{k} \frac{\text{Cut}(A_i, \overline{A_i})}{\text{Assoc}(A_i, V)}
-    \]
-
-    <p>
-        Where:
-    </p>
-    <ul>
-        <li> \( \overline{A_i} \) denotes all nodes not in \(A_i\)
-        <li> \( \text{Cut}(A_i, \overline{A_i}) \) is the sum of the weights of edges between \( A_i \) and the rest of
+        <p>
+            The central questions we are trying to solve in this blog are, whether and how we can cluster proteins using
+            3D
+            shape
+            descriptors and how we can assess and compare the performance of different 3D shape descriptors to determine
+            the most suitable one for the task. We will explore these questions by first looking at what tools are at
+            out
+            disposal,
+            such as 3D shape descriptors and performance measures. Next, we will present a suitable workflow to analyze
             the
-            graph
-        <li> \( \text{Assoc}(A_i, V) \) is the sum of all node degrees in \(A_i\)
-    </ul>
+            performance
+            of the descriptors.
+        </p>
 
-    <p>
-        Normalized cut values are always positive, with lower values indicating easier partitioning. Conversely, higher
-        values suggest less optimal cuts. It is difficult to determine what an optimal value for this measure is, since
-        it
-        does not have a clearly defined value range. In the further project, just think the smaller the better, as long
-        as
-        it is not 0.
-    </p>
+        <p>
+            In this process, we will also have a quick look at <i>k</i>-Nearest Neighbor (<i>k</i>-NN) graphs and their
+            variants, as
+            they will be used as a basis for the clustering. <i>k</i>-NN graphs help model relationships between data
+            points
+            by
+            connecting them to their closest neighbors as some sort of preprocessing step in the clustering.
+            The clustering itself will be performed using spectral clustering to analyze how well 3D shape descriptors
+            can
+            model similarities between point clouds.
+            By combining these techniques, we aim to
+            evaluate the effectiveness of various descriptors and provide insights into their suitability for clustering
+            protein datasets.
+        </p>
 
-    <p>
-        The second metric is the <strong>Ratio Cut</strong>. Another approach to evaluating graph partitions, focusing on
-        the edge weights between
-        clusters relative to their sizes. For a set of clusters \(A_1, A_2, \dots, A_k\), the ratio cut value is defined
-        as:
-    </p>
+        <figure class="embedded-3d-figure">
+            <div class="embedded-3d-figure-div">
+                <iframe class="embedded-3d-figure-iframe silhouette-figure"
+                        src="figure/protein_silhouette_3d.html"></iframe>
+                <iframe class="embedded-3d-figure-iframe silhouette-figure"
+                        src="figure/table_silhouette_3d.html"></iframe>
+            </div>
+            <figcaption class="embedded-3d-figure-caption">
+                Figure 1: Two example objects from the datasets used in this blog. The left object is a hemoglobin
+                protein.
+                The right one
+                a table.
+            </figcaption>
+        </figure>
 
-    \[
-    \text{Rcut}(A_1, A_2, \dots, A_k) = \sum_{i=1}^{k} \frac{\text{Cut}(A_i, \overline{A_i})}{|A_i|}
-    \]
+        <p>
+            Furthermore, we will introduce two datasets that will be used for evaluation. The first one is the so called
+            McGill
+            shape benchmark dataset. The second one contains protein data, that we have chosen ourselves through a web
+            API.
+        </p>
 
-    <p>
-        Where:
-    </p>
-    <ul>
-        <li> \( \text{Cut}(A_i, \overline{A_i}) \) is the sum of the weights of edges between \( A_i \) and the rest of
-            the
-            graph
-        <li>\(|A_i|\) is the size of cluster \(A_i\)
-    </ul>
+        <p>
+            The reason why particularly proteins are of interest to us is, that they are essential molecules that play
+            critical roles in cellular structure and function. From acting as enzymes to being antibodies against
+            potentially harmful diseases,
+            their functions in our bodies are sheer endless. When it comes to their 3D shapes, or tertiary structures,
+            they
+            are formed when amino
+            acid chains fold into stable configurations determined by their
+            sequence and atomic interactions. Whats more is the fact, that this shape directly correlates with a
+            protein's
+            function. We can therefore try to search similar proteins just by their shape and assume that their
+            functions
+            must be
+            similar as well.
+        </p>
 
-    <p>
-        Like normalized cut values, ratio cut values are positive, with lower values indicating better partitions.
-        Higher
-        values suggest poorer-quality partitions, as they represent larger cuts relative to the cluster sizes.
-    </p>
+        <h2 id="3d-shape-descriptors">
+            3D Shape Descriptors? What's that?
+        </h2>
 
-    <h2>
-        How to evaluate 3D shape descriptors?
-    </h2>
+        <p>
+            A 3D shape descriptor is a tool that helps us represent the 3D structure of an object in a lower dimensional
+            space. Usually, these shapes
+            come in the form of point clouds, which is simply a set of Cartesian 3D coordinates outlining some object.
+            The
+            plots in the introduction already contained two such point clouds.
+            Just imagine how many points
+            would be needed to accurately represent the outline of an object. At least a few thousand. For
+            state-of-the-art
+            clustering algorithms, this is just too much. Instead, we first reduce the object to a shape
+            descriptor. But how? Let's look at a few examples: EVARP, SAMP3D, SCOMP3D, and SIRM3D.
+        </p>
 
-    <p>
-        Now that we have all the specifics we need, we want to present a framework for evaluating 3D shape descriptors.
-        We start by simply visualizing the \(k\)-NN graphs with node coloring based on the true labels.
-        This provides a qualitative evaluation. It just gives
-        us a general idea if the results look reasonable. If the graph looks completely wrong, either our implementation
-        is
-        incorrect, or the descriptors are just not the right choice for the task at hand.
-    </p>
+        <h3 id="evarp">
+            Explained Variance Ratio of Principal Components (EVARP)
+        </h3>
 
-    <p>
-        Next, the Normalized Mutual Information (NMI) and Adjusted Rand Index (ARI) are calculated by applying
-        spectral clustering on these graphs, giving a quantitative perspective on the descriptors' performance. We
-        can visualize these scores against an increasing number of clusters used during the clustering method. To delve
-        deeper, we analyze the Ratio and Normalized Cut values for various values of \(k\) in kNN graphs. This gives us
-        an
-        idea of how well information is kept across different values of \(k\).
-    </p>
+        <p>
+            In this method, the data is reduced to 3 components using standard Principal Component Analysis. The
+            descriptor
+            itself is the ratio of explained variance in the 3 computed principal components of a single point cloud.
+            Thus,
+            per point cloud, a descriptor with 3 elements is created.
+        </p>
 
-    <p>
-        We also conduct a similar analysis by reducing the dimensionality of the descriptors using PCA before computing
-        the
-        \(k\)-NN graph, to test how much information is
-        represented in the principal components.
-        In this experiment, we again compute the Ratio and Normalized Cut values for a fixed, reasonable \(k\) and
-        report the values
-        for an increasing number of dimensions considered in the computation.
-    </p>
+        <p>
+            The time complexity of this method is \(O(md^2 + d^3)\), where \(m\) is the number of points in each point
+            cloud
+            and
+            \(d\) is the dimensionality of the point cloud. Note that \(d\) is constant, so the time complexity
+            simplifies
+            to
+            \(O(m)\). For the whole dataset, the time complexity of EVARP is \(O(nm)\).
+        </p>
 
-    <p>
-        Rotational invariance is checked by randomly rotating objects and recomputing these metrics. If they remain the
-        same, we can assume that the descriptors are rotation-invariant. For a more robust result, we can of course also
-        create a formal proof of this property.
-    </p>
+        <h3 id="samp">
+            Simplified Asymmetry Measure Based on Projections in 3D (SAMP3D)
+        </h3>
 
-    <p>
-        Another important aspect of a descriptor is the runtime. Runtime tests assess the computational efficiency as
-        the dataset size grows. This step is almost self explanatory. Simply compute the runtime on increasing dataset
-        sizes and
-        visualize them against each other.
-    </p>
+        <figure class="embedded-3d-figure">
+            <iframe class="embedded-3d-figure-iframe descriptor-figure" src="figure/protein_samp.html"></iframe>
+            <figcaption class="embedded-3d-figure-caption">
+                Figure 2: A figure depicting how to calculate the SAMP 3D shape descriptor.
+            </figcaption>
+        </figure>
 
-    <p>
-        Finally, we test the
-        descriptors' ability to handle mirrored objects and use scatter plot matrices to visually explore their behavior
-        across true and mirrored clusters. For both of the previous steps, a theoretical analysis is again a
-        consideration
-        worth taking.
-    </p>
+        <p>
+            The 2D version of this descriptor initially reduces each point cloud individually into a 2D matrix using
+            Factor
+            Analysis with Varimax rotation and scales the points to a range between \(0\) and \(1\), to produce a size
+            independent
+            result. Following this preprocessing step, the object is partitioned into exactly \(s\) number of equally
+            spaced
+            segments along each axis, which is the only user selected hyperparameter of this method. Note that this
+            segmentation is processed per axis, and not combined. We therefore segment the object into into \(2 \cdot
+            s\)
+            segments, not \(s \cdot s\) ones. For a better understanding of how one such segmentation per axis looks
+            like,
+            please refer to the figure. Choose one particular subplane view and turn off all segmentations, expect for
+            one
+            that corresponds
+            to the same subplane view. Also turn off the object itself. You can now see how this partitioning looks
+            like.
+            As for the mathematical definition, a
+            segment is denoted by \(x_{i, j}\), where \(i \in {1, 2}\) corresponds to the axis and
+            \(j\) is the index of the segment.
+        </p>
 
-    <p>
-        With this step-by-step evaluation in place, we can test several important aspects of a robust, efficient
-        descriptor.
-        It ensures that the descriptors are both accurate and the correct choice for
-        the applications they are used on. Additionally, this assessment criteria also lets us decide, which candidate
-        descriptor we should choose.
-    </p>
+        <p>
+            After creating the segmentation, for each segment, pick the 5 % highest and lowest values (These points are
+            highlighted in the figure as well!) along the opposing axis of this hyperplane.
+            Calculate the median for each group and subtract the lower median from the higher one. Mathematically
+            speaking,
+            this
+            looks like this:
+        </p>
 
-    <h2>Protein Clustering Results</h2>
+        \[
+        a_{x_{i, j}} = |median(x_{i, j}^{max}) - median(x_{i, j}^{min})|
+        \]
 
-    <p>
-        After all these mathematical definitions and graph specifics, let's now get back to what we actually wanted to
-        test: Whether 3D shape descriptors are any useful when it comes to protein clustering.
-    </p>
+        <p>
+            Finally, for each axis, the asymmetry measures are summed up
+        </p>
 
-    <p>
-        In this section, we will present the results of the experiments we conducted on the shape descriptors introduced
-        above. We employed two datasets: one that contains proteins, which are selected from the
-        <a class="links" href="https://www.rcsb.org/">RCSB Protein Database</a> and the
-        <a class="links" href="https://www.cim.mcgill.ca/~shape/benchMark/">McGill shape benchmark</a>, as test cases.
-    </p>
+        \[
+        a(x_i) = \sum_{j=1}^{s} a_{x_{i, j}} \
+        \]
 
-    <p>
-        For the protein dataset, we handpicked 9 different random proteins, such as hemoglobin or the SARS-CoV-2 spike
-        glycoprotein, out of which clusters were created by using the structure similarity search feature of the
-        mentioned database API. The response objects of theses searches include a so-called structure match score, which
-        according to the
-        documentation, is a "probability that the retrieved object matches the query structure". For our dataset, we
-        picked
-        each element that matches one of the 9 reference proteins by more than 20 \%. For more information about the
-        API,
-        please have a look at the documentation. The relevant sections are
-        <a class="links" href="https://search.rcsb.org/index.html\#search-api">RCSB PDB Search</a>,
-        <a class="links" href="https://search.rcsb.org/index.html\#search-example-3">3D-shape Search</a> and
-        <a class="links" href="https://www.rcsb.org/docs/search-and-browse/advanced-search/structure-similarity-search">Structure
-            Similarity Search</a>. The final dataset had about 250 objects with cluster sizes ranging from 1 to 100.
-    </p>
+        <p>
+            and the feature vector is created by sorting the two resulting values in a decreasing order
+        </p>
 
-    <p>
-        As for the McGill shape benchmark, a total of 9 subsets presented on the page linked above were used. All
-        clusters
-        combined have 202 objects. The smallest one contains 12 objects, while the largest one has 31. Object categories
-        include tables, fish, airplanes and dolphins.
-    </p>
+        \[
+        v_{SAMP} =
+        \begin{pmatrix}
+        \max a(x_i) \\
+        \min a(x_i)
+        \end{pmatrix}
+        \]
 
-    <p>
-        We will now have a look at what implications can be made from the evaluation routine we have
-        described
-        above, as well as present the performance of our descriptors in comparison to the
-        <a class="links" href="https://cdn.aaai.org/ISMB/1999/ISMB99-005.pdf">shell model, combined model and sector model</a>, and
-        <a class="links" href="https://pcl.readthedocs.io/projects/tutorials/en/master/fpfh_estimation.html">FPFH</a>.
-    </p>
+        <p>
+            We can easily extend this method into 3D by taking into consideration each possible 2D axes combination. We
+            still
+            use Factor Analysis with varimax rotation, but do not reduce the point cloud to 2D. The above description is
+            therefore computed across each 2D axes combination, and the 3 outputs are concatenated. The final descriptor
+            per
+            point cloud has 6 elements.
+        </p>
 
-    <h3>Graph Visualizations on the Protein Dataset</h3>
-    <figure class="embedded-3d-figure">
-        <div class="embedded-3d-figure-div">
-            <img class="embedded-3d-figure-img-split-2"
-                 src="figure/knn_graph_15_mutual_evrap_samp_3d_scomp_3d_sirm_3d.png"
-                 alt="mutual KNN graph visualization">
-            <img class="embedded-3d-figure-img-split-2"
-                 src="figure/knn_graph_15_symmetric_evrap_samp_3d_scomp_3d_sirm_3d.png"
-                 alt="symmetric KNN graph visualization">
-        </div>
-        <figcaption class="embedded-3d-figure-caption">
-            Figure 6: Two \(k\)-NN graph visualizations
-        </figcaption>
-    </figure>
-    <p>
-        In the graph visualizations we were able to see that clusters showed
-        varying levels of connectivity, with some tightly coupled and others sparsely connected. Interestingly, mutual
-        \(k\)-NN graphs appeared more reliable than symmetric ones at first glance. However, this observation was
-        challenged
-        by later findings. What we realized only later too was, that some graphs were not connected, mainly when using
-        the FPFH
-        descriptor.
-    </p>
-
-    <h3>Normalized Mutual Information (NMI) and Adjusted Rand Index (ARI)</h3>
-    <p>
-        The clustering evaluation provided a lot of interesting information. It provided useful insights not only when
-        it
-        comes to choosing the best descriptor, but also what type of \(k\)-NN graph is most reliable for our use case.
-        First of all, we could see that unweighted graphs outperformed weighted ones in every single test case.
-    </p>
-    <figure class="embedded-3d-figure">
-        <div class="embedded-3d-figure-div">
-            <img class="embedded-3d-figure-img-split-2"
-                 src="figure/unweighted_symmetric_knn_nmi_ari_k5_polished.png"
-                 alt="unweighted symmetric KNN graph clustering performance">
-            <img class="embedded-3d-figure-img-split-2"
-                 src="figure/weighted_symmetric_knn_nmi_ari_k5_polished.png"
-                 alt="weighted symmetric KNN graph clustering performance">
-        </div>
-        <figcaption class="embedded-3d-figure-caption">
-            Figure 7: Example comparison between weighted and unweighted graphs
-        </figcaption>
-    </figure>
-    <p>
-        Another useful observation when it comes to deciding which type of graph is best, is that symmetric ones
-        mostly achieve better performance than mutual ones, though not in all cases. When it comes to the highest
-        achieved
-        performance across all test cases however, symmetric \(k\)-NN graphs prove to be the best choice.
-    </p>
-    <figure class="embedded-3d-figure">
-        <div class="embedded-3d-figure-div">
-            <img class="embedded-3d-figure-img-split-2"
-                 src="figure/unweighted_mutual_knn_nmi_ari_k15_polished.png"
-                 alt="unweighted mutual KNN graph clustering performance">
-            <img class="embedded-3d-figure-img-split-2"
-                 src="figure/unweighted_symmetric_knn_nmi_ari_k15_polished.png"
-                 alt="unweighted symmetric KNN graph clustering performance">
-        </div>
-        <figcaption class="embedded-3d-figure-caption">
-            Figure 8: Example comparison between mutual and symmetric graphs
-        </figcaption>
-    </figure>
-    <p>
-        Finally, the choice of \(k\) when computing the graph is also an important factor,
-        as too low and too high values led to poor results. When it comes to which descriptors most consistently
-        provided effective results
-        it is difficult to make a decision. Both the shell model, as well as EVARP seem to be good choices mostly,
-        however
-        all of them were sensible to the choice of \(k\)-NN graph hyperparameters.
-    </p>
-
-    <h3>Ratio and Normalized Cut</h3>
-    <p>
-        For further analysis, we examined Ratio and Normalized Cut metrics. Mutual graphs outperformed symmetric ones in
-        these tests.
-    </p>
-    <figure class="embedded-3d-figure">
-        <div class="embedded-3d-figure-div">
-            <img class="embedded-3d-figure-img-split-2"
-                 src="figure/symmetric_ratio_normalized_cut_per_k.png"
-                 alt="symmetric KNN graph cut performance">
-            <img class="embedded-3d-figure-img-split-2"
-                 src="figure/mutual_ratio_normalized_cut_per_k.png"
-                 alt="mutual KNN graph clustering performance">
-        </div>
-        <figcaption class="embedded-3d-figure-caption">
-            Figure 9: Example comparison between mutual and symmetric graph cuts
-        </figcaption>
-    </figure>
-    <p>
-        To be fair, though, this comparison is unfair to make. Mutual graphs will have less connections by design.
-        Since these measures are highly sensitive to the number of edges, this comparison is biased towards mutual
-        graphs.
-    </p>
-    <figure class="embedded-3d-figure">
-        <div class="embedded-3d-figure-div">
-            <img class="embedded-3d-figure-img-split-2"
-                 src="figure/symmetric_ratio_normalized_cut_per_k.png"
-                 alt="symmetric KNN graph cut performance">
-            <img class="embedded-3d-figure-img-split-2"
-                 src="figure/symmetric_ratio_normalized_cut_per_k_rotated.png"
-                 alt="symmetric KNN graph clustering performance">
-        </div>
-        <figcaption class="embedded-3d-figure-caption">
-            Figure 10: Example comparison with rotated objects in the dataset
-        </figcaption>
-    </figure>
-    <p>
-        Descriptors, such as EVARP, the shell model, the sector model, and the combined model, stood out for their
-        effectiveness. Interestingly though, this observation shifted when we randomly rotated the objects in the
-        datasets. Here, the combined model and the sector model had much worse performance, while other
-        ones,
-        such as EVARP, the shell model, SIRM3D or SAMP3D were able to produce the same results as before. This highly
-        indicates
-        that these models are rotation-invariant, which can be a desirable property in many use cases, such as protein
-        clustering.
-    </p>
-    <figure class="embedded-3d-figure">
-        <div class="embedded-3d-figure-div">
-            <img class="embedded-3d-figure-img-no-split"
-                 src="figure/symmetric_ratio_normalized_cut_reduced_d.png"
-                 alt="symmetric KNN graph cut performance">
-        </div>
-        <figcaption class="embedded-3d-figure-caption">
-            Figure 11: Example comparison with reduced dimensionality
-        </figcaption>
-    </figure>
-    <p>
-        We could also show that most of the information is carried in just a very small subset of the dimensions. The
-        results showed that Normalized and Ratio Cut values remained consistent when using two or more principal
-        components.
-    </p>
-
-    <h3>Runtime Performance</h3>
-    <figure class="embedded-3d-figure">
-        <div class="embedded-3d-figure-div">
-            <img class="embedded-3d-figure-img-no-split"
-                 src="figure/runtime_logy.png"
-                 alt="runtime plot">
-        </div>
-        <figcaption class="embedded-3d-figure-caption">
-            Figure 12: Runtime plot of the shape descriptors with logarithmic y-axis
-        </figcaption>
-    </figure>
-    <p>
-        When measuring computational efficiency, EVARP, the shell model, and the sector model were the most efficient.
-        SAMP3D, SIRM3D, and the combined model performed slightly slower, while SCOMP3D and FPFH were the slowest among
-        the tested descriptors.
-    </p>
-
-    <h3>Enantiomer Test (Mirroring)</h3>
-    <p>
-        Finally, we tested whether the descriptors could differentiate between mirrored data points. This property is
-        of interest to us, since mirrored chemical compounds have very similar 3D shape, but potentially different
-        functionality.
-    </p>
-    <figure class="embedded-3d-figure">
-        <div class="embedded-3d-figure-div">
-            <img class="embedded-3d-figure-img-no-split"
-                 src="figure/evarp_predicted_vs_true_clustering_mirrored.png"
-                 alt="comparison plot between true labeling and predicted one on mirrored data">
-        </div>
-        <figcaption class="embedded-3d-figure-caption">
-            Figure 13: Comparison plot between true labeling and predicted one on mirrored data
-        </figcaption>
-    </figure>
-    <p>
-        Interestingly, none of the descriptors were able to differentiate these points. They were not only not able to
-        do so,
-        but actually seemed completely mirror-invariant.
-    </p>
-    <figure class="embedded-3d-figure">
-        <div class="embedded-3d-figure-div">
-            <img class="embedded-3d-figure-img-no-split"
-                 src="figure/scatterplot_matrix_sirm_3d_true_labeling.png"
-                 alt="comparison plot between true labeling and predicted one on mirrored data">
-        </div>
-        <figcaption class="embedded-3d-figure-caption">
-            Figure 14: Descriptor values for two clusters that contain mirrored objects. More specifically, cluster -7
+        <p>
+            This method has time complexity of \(O(n \cdot(d^3 + m))\), though the dimensionality of the point clouds
+            \(d\)
             is
-            mirrored across the
-            y-axis.
-        </figcaption>
-    </figure>
-    <p>
-        The descriptor values for both the true as well as mirrored data points had exactly the same values. If we further look
-        into the descriptors it is easy to see that they actually are mirror-invariant.
-    </p>
+            constant again, simplifying to \(O(nm)\).
+        </p>
 
-    <h2>Conclusion</h2>
+        <h3 id="scomp">
+            Simplified Concavity Measure Based on Projections in 3D (SCOMP3D)
+        </h3>
 
-    <p>
-        In this work, we set out to evaluate whether 3D shape descriptors can effectively cluster proteins and determine
-        which descriptors perform best. In the process we have presented a workflow of how to evaluate these questions
-        and also provided some thoughts about how to interpret the implications of the output.
-    </p>
+        <figure class="embedded-3d-figure">
+            <iframe class="embedded-3d-figure-iframe descriptor-figure" src="figure/protein_scomp.html"></iframe>
+            <figcaption class="embedded-3d-figure-caption">
+                Figure 3: A figure depicting how to calculate the SCOMP 3D shape descriptor.
+            </figcaption>
+        </figure>
 
-    <p>
-        We utilized protein tertiary structures as input and tested various descriptors, including EVARP, SAMP3D,
-        SCOMP3D, and SIRM3D, using \(k\)-Nearest Neighbor graphs and spectral clustering.
-    </p>
+        <p>
+            In this method, we again process the object by taking into consideration each possible
+            combination of axes. We divide each subspace into a grid with \(c\) cells, which is a hyperparameter of the
+            method. Please refer to the figure for a better understanding of this process.
+        </p>
 
-    <p>
-        Our analysis highlighted that descriptors such as <strong>EVARP</strong> and the <strong>shell model</strong>
-        consistently
-        exhibited
-        strong clustering performance, balancing precision and runtime efficiency. However, challenges were noted in
-        handling certain data characteristics and certain object geometries. For instance, all descriptors struggled
-        with mirrored
-        objects due to limitations in how they process structural features. In this category fall both EVARP and the
-        shell.
-        This is one promising open question with the potential for improvements.
-        model.
-    </p>
+        <p>
+            Next, we compute the area of the convex hull of each subspace, as well as the area of all cells that contain
+            at
+            least one
+            data point. In mathematical terms, we can write this like so:
+        </p>
+
+        \[
+        v_{ij} = \frac{vol\_conv_{ij}}{vol\_grids_{ij}}
+        \]
+
+        <p>
+            where \(vol\_conv_{ij}\) is the area of all cells that contain at least one point in the subspace \(ij\) and
+            \(vol_{conv}\) is the volume of the
+            convex hull. The figure again shows the different subspaces and their corresponding convex hulls. Simply
+            concatenate
+            all the \(v_{ij}\) values into a single feature vector.
+        </p>
+        <p>
+
+            The complexity of the convex hull calculation is \(O(m\) log \(m)\). The complexity of the calculation of
+            \(vol_{grids}\)
+            is \(O(m)\). We therefore have a combined time complexity of \(O(n \cdot (m\) log \(m)\).
+        </p>
+
+        <h3 id="sirm">
+            Simplified Rectangularity Measure in 3D (SIRM3D)
+        </h3>
+
+        <figure class="embedded-3d-figure">
+            <iframe class="embedded-3d-figure-iframe descriptor-figure" src="figure/protein_sirm.html"></iframe>
+            <figcaption class="embedded-3d-figure-caption">
+                Figure 4: A figure depicting how to calculate the SIRM 3D shape descriptor.
+            </figcaption>
+        </figure>
+
+        <p>
+            This method is very similar to SCOMP3D, but we use the area of the bounding box as denominator instead:
+        </p>
+        \[
+        v_{ij} = \frac{vol\_conv_{ij}}{vol\_bound_{ij}}
+        \]
+
+        <p>
+            Again concatenate all 3 resulting values to form the final descriptor. It exhibits a total complexity is
+            \(O(nm)\).
+        </p>
+
+        <h2 id="knn-graphs">Next step: \(k\)-NN graphs</h2>
+
+        <p>
+            We now know how to create a representation of a 3D shape, that lets us compare them faster. So far so good.
+            As
+            already mentioned earlier, we will connect the descriptors of the individual point clouds into \(k\)-NN
+            graphs
+            as
+            a further step before clustering them. We therefore want to establish a few basics about these graphs.
+        </p>
+
+        <p>
+            A <strong>\(k\)-Nearest Neighbor (\(k\)-NN) graph</strong> is a way to represent relationships and
+            similarities
+            between data
+            points in a dataset. It is a powerful tool used in clustering, classification, and other machine learning
+            tasks
+            to identify which data points are “close” to each other based on some distance measure (e.g. the Euclidean
+            distance).
+        </p>
+
+        <p>
+            A \(k\)-NN graph is defined as a <strong>directed</strong> graph \(G = (V, E)\), where:
+        </p>
+
+        <ul>
+            <li> \(V\) is the set of nodes, with each node representing a data point.
+            <li> \(E\) is the set of edges, where an edge exists from node \(v_i\) to node \(v_j\) if \(v_j\) is one of
+                the
+                \(k\)-nearest neighbors of \(v_i\).
+        </ul>
+
+        <p>
+            The parameter \(k\) controls how many neighbors each node is connected to, making it a critical factor in
+            defining the graph’s structure.
+        </p>
+
+        <h3 id="knn-types">
+            Types of k-NN Graphs
+        </h3>
+
+        <figure class="embedded-3d-figure">
+            <div class="embedded-3d-figure-div">
+                <img class="embedded-3d-figure-img-split-3" src="figure/directed_knn_graph_knn_visualization.png"
+                     alt="directed KNN graph visualization">
+                <img class="embedded-3d-figure-img-split-3" src="figure/mutual_knn_graph_knn_visualization.png"
+                     alt="mutual KNN graph visualization">
+                <img class="embedded-3d-figure-img-split-3" src="figure/symmetric_knn_graph_knn_visualization.png"
+                     alt="symmetric KNN graph visualization">
+            </div>
+            <figcaption class="embedded-3d-figure-caption">
+                Figure 5: The left figure contains a directed, \(k\)-NN graph. Next to it are both a mutual and
+                symmetric
+                one, which are
+                derived from it.
+            </figcaption>
+        </figure>
+
+        <p>
+            There are also extensions to this definition. A more restrictive version of the \(k\)-NN graph is the
+            <strong>mutual</strong>
+            \(k\)-NN graph, which only includes edges where the relationship is mutual. In this case, an edge exists
+            between
+            \(v_i\) and \(v_j\) only if \(v_j\) is one of \(v_i\)’s \(k\)-nearest neighbors and \(v_i\) is also one of
+            \(v_j\)’s \(k\)-nearest neighbors. This ensures that connections in the graph represent stronger, shared
+            relationships. From this definition we can also conclude that this is an <strong>undirected</strong> graph.
+        </p>
+
+        <p>
+            In contrast, the <strong>symmetric</strong> \(k\)-NN graph is slightly less restrictive. An edge exists
+            between
+            \(v_i\)
+            and \(v_j\) if either \(v_j\) is one of \(v_i\)’s \(k\)-nearest neighbors or \(v_i\) is one of \(v_j\)’s
+            \(k\)-nearest neighbors. This is looser definition is again undirected.
+        </p>
+
+        <h3 id="weighted-unweighted-knn-graphs">
+            Weighted vs. Unweighted k-NN Graphs
+        </h3>
+
+        <p>
+            Another property of a \(k\)-NN graph is its edge weights. There are <strong>weighted</strong> and <strong>unweighted</strong>
+            graphs:
+        </p>
+
+        <ul>
+            <li> Weighted: Edges are assigned weights based on some measure. In our use case, the weight would be
+                the euclidean distance between the descriptors. A lower weight is therefore more desirable.
+            <li> Unweighted: All edges carry the same level of importance. Or in other words: Each edge weight has
+                the same value (e.g. 1).
+        </ul>
+
+        <p>
+            These different types of \(k\)-NN graphs provide flexibility in analyzing datasets, whether we want strict
+            relationships (mutual), more inclusive ones (symmetric), or weighted connections that factor in the strength
+            of
+            similarities. By choosing the right type, we can tailor the graph to the needs of a specific task, such as
+            clustering or exploring protein similarities. In our case, the last step is to perform <strong>spectral
+            clustering</strong>.
+        </p>
+
+        <h2 id="evaluation-metrics">
+            Evaluation Metrics
+        </h2>
+
+        <p>
+            So we want to asses both the quality of the final clustering, as well as the \(k\)-NN graphs. This section
+            introduces the tools we can use to perform this assessment: evaluation metrics.
+        </p>
+
+        <p>
+            Let's start with the <strong>Normalized Mutual Information (NMI)</strong>. It is a measure of the agreement
+            between the true class labels and the predicted one. What
+            is important for the further understanding of this blog is the fact, that the value of the measure lies
+            within
+            the range \([0, 1]\). A value close to \(1\) indicates a high degree of agreement between the labels, while
+            a
+            value near \(0\) suggests little to no agreement. We are therefore interested in a value closer to 1.
+        </p>
+
+        <p>
+            The <strong>Adjusted Rand Index (ARI)</strong> again is a similar measure. It ranges from
+            \(-1\) to \(1\), where values closer to \(1\) are more desirable, as they indicate strong agreement between
+            the
+            clustering and the true labeling, \(0\) suggests random clustering, and negative values imply disagreement.
+        </p>
+
+        <p>
+            These last two measures focus on label agreement. As for the quality of the graphs, we can use the
+            following two.
+            The first one is the <strong>Normalized Cut metric</strong>, used to evaluate the quality of a graph cut by
+            considering the
+            cost of a cut
+            relative
+            to the total edge weights of the partitions. Its mathematical definition is:
+        </p>
+
+        \[
+        \text{Ncut}(A_1, A_2, \dots, A_k) = \sum_{i=1}^{k} \frac{\text{Cut}(A_i, \overline{A_i})}{\text{Assoc}(A_i, V)}
+        \]
+
+        <p>
+            Where:
+        </p>
+        <ul>
+            <li> \( \overline{A_i} \) denotes all nodes not in \(A_i\)
+            <li> \( \text{Cut}(A_i, \overline{A_i}) \) is the sum of the weights of edges between \( A_i \) and the rest
+                of
+                the
+                graph
+            <li> \( \text{Assoc}(A_i, V) \) is the sum of all node degrees in \(A_i\)
+        </ul>
+
+        <p>
+            Normalized cut values are always positive, with lower values indicating easier partitioning. Conversely,
+            higher
+            values suggest less optimal cuts. It is difficult to determine what an optimal value for this measure is,
+            since
+            it
+            does not have a clearly defined value range. In the further project, just think the smaller the better, as
+            long
+            as
+            it is not 0.
+        </p>
+
+        <p>
+            The second metric is the <strong>Ratio Cut</strong>. Another approach to evaluating graph partitions,
+            focusing on
+            the edge weights between
+            clusters relative to their sizes. For a set of clusters \(A_1, A_2, \dots, A_k\), the ratio cut value is
+            defined
+            as:
+        </p>
+
+        \[
+        \text{Rcut}(A_1, A_2, \dots, A_k) = \sum_{i=1}^{k} \frac{\text{Cut}(A_i, \overline{A_i})}{|A_i|}
+        \]
+
+        <p>
+            Where:
+        </p>
+        <ul>
+            <li> \( \text{Cut}(A_i, \overline{A_i}) \) is the sum of the weights of edges between \( A_i \) and the rest
+                of
+                the
+                graph
+            <li>\(|A_i|\) is the size of cluster \(A_i\)
+        </ul>
+
+        <p>
+            Like normalized cut values, ratio cut values are positive, with lower values indicating better partitions.
+            Higher
+            values suggest poorer-quality partitions, as they represent larger cuts relative to the cluster sizes.
+        </p>
+
+        <h2 id="how-to-evaluate">
+            How to evaluate 3D shape descriptors?
+        </h2>
+
+        <p>
+            Now that we have all the specifics we need, we want to present a framework for evaluating 3D shape
+            descriptors.
+            We start by simply visualizing the \(k\)-NN graphs with node coloring based on the true labels.
+            This provides a qualitative evaluation. It just gives
+            us a general idea if the results look reasonable. If the graph looks completely wrong, either our
+            implementation
+            is
+            incorrect, or the descriptors are just not the right choice for the task at hand.
+        </p>
+
+        <p>
+            Next, the Normalized Mutual Information (NMI) and Adjusted Rand Index (ARI) are calculated by applying
+            spectral clustering on these graphs, giving a quantitative perspective on the descriptors' performance. We
+            can visualize these scores against an increasing number of clusters used during the clustering method. To
+            delve
+            deeper, we analyze the Ratio and Normalized Cut values for various values of \(k\) in kNN graphs. This gives
+            us
+            an
+            idea of how well information is kept across different values of \(k\).
+        </p>
+
+        <p>
+            We also conduct a similar analysis by reducing the dimensionality of the descriptors using PCA before
+            computing
+            the
+            \(k\)-NN graph, to test how much information is
+            represented in the principal components.
+            In this experiment, we again compute the Ratio and Normalized Cut values for a fixed, reasonable \(k\) and
+            report the values
+            for an increasing number of dimensions considered in the computation.
+        </p>
+
+        <p>
+            Rotational invariance is checked by randomly rotating objects and recomputing these metrics. If they remain
+            the
+            same, we can assume that the descriptors are rotation-invariant. For a more robust result, we can of course
+            also
+            create a formal proof of this property.
+        </p>
+
+        <p>
+            Another important aspect of a descriptor is the runtime. Runtime tests assess the computational efficiency
+            as
+            the dataset size grows. This step is almost self explanatory. Simply compute the runtime on increasing
+            dataset
+            sizes and
+            visualize them against each other.
+        </p>
+
+        <p>
+            Finally, we test the
+            descriptors' ability to handle mirrored objects and use scatter plot matrices to visually explore their
+            behavior
+            across true and mirrored clusters. For both of the previous steps, a theoretical analysis is again a
+            consideration
+            worth taking.
+        </p>
+
+        <p>
+            With this step-by-step evaluation in place, we can test several important aspects of a robust, efficient
+            descriptor.
+            It ensures that the descriptors are both accurate and the correct choice for
+            the applications they are used on. Additionally, this assessment criteria also lets us decide, which
+            candidate
+            descriptor we should choose.
+        </p>
+
+        <h2 id="protein-clustering">Protein Clustering Results</h2>
+
+        <p>
+            After all these mathematical definitions and graph specifics, let's now get back to what we actually wanted
+            to
+            test: Whether 3D shape descriptors are any useful when it comes to protein clustering.
+        </p>
+
+        <p>
+            In this section, we will present the results of the experiments we conducted on the shape descriptors
+            introduced
+            above. We employed two datasets: one that contains proteins, which are selected from the
+            <a class="links" href="https://www.rcsb.org/">RCSB Protein Database</a> and the
+            <a class="links" href="https://www.cim.mcgill.ca/~shape/benchMark/">McGill shape benchmark</a>, as test
+            cases.
+        </p>
+
+        <p>
+            For the protein dataset, we handpicked 9 different random proteins, such as hemoglobin or the SARS-CoV-2
+            spike
+            glycoprotein, out of which clusters were created by using the structure similarity search feature of the
+            mentioned database API. The response objects of theses searches include a so-called structure match score,
+            which
+            according to the
+            documentation, is a "probability that the retrieved object matches the query structure". For our dataset, we
+            picked
+            each element that matches one of the 9 reference proteins by more than 20 \%. For more information about the
+            API,
+            please have a look at the documentation. The relevant sections are
+            <a class="links" href="https://search.rcsb.org/index.html\#search-api">RCSB PDB Search</a>,
+            <a class="links" href="https://search.rcsb.org/index.html\#search-example-3">3D-shape Search</a> and
+            <a class="links"
+               href="https://www.rcsb.org/docs/search-and-browse/advanced-search/structure-similarity-search">Structure
+                Similarity Search</a>. The final dataset had about 250 objects with cluster sizes ranging from 1 to 100.
+        </p>
+
+        <p>
+            As for the McGill shape benchmark, a total of 9 subsets presented on the page linked above were used. All
+            clusters
+            combined have 202 objects. The smallest one contains 12 objects, while the largest one has 31. Object
+            categories
+            include tables, fish, airplanes and dolphins.
+        </p>
+
+        <p>
+            We will now have a look at what implications can be made from the evaluation routine we have
+            described
+            above, as well as present the performance of our descriptors in comparison to the
+            <a class="links" href="https://cdn.aaai.org/ISMB/1999/ISMB99-005.pdf">shell model, combined model and sector
+                model</a>, and
+            <a class="links"
+               href="https://pcl.readthedocs.io/projects/tutorials/en/master/fpfh_estimation.html">FPFH</a>.
+        </p>
+
+        <h3 id="graph-viz">Graph Visualizations on the Protein Dataset</h3>
+        <figure class="embedded-3d-figure">
+            <div class="embedded-3d-figure-div">
+                <img class="embedded-3d-figure-img-split-2"
+                     src="figure/knn_graph_15_mutual_evrap_samp_3d_scomp_3d_sirm_3d.png"
+                     alt="mutual KNN graph visualization">
+                <img class="embedded-3d-figure-img-split-2"
+                     src="figure/knn_graph_15_symmetric_evrap_samp_3d_scomp_3d_sirm_3d.png"
+                     alt="symmetric KNN graph visualization">
+            </div>
+            <figcaption class="embedded-3d-figure-caption">
+                Figure 6: Two \(k\)-NN graph visualizations
+            </figcaption>
+        </figure>
+        <p>
+            In the graph visualizations we were able to see that clusters showed
+            varying levels of connectivity, with some tightly coupled and others sparsely connected. Interestingly,
+            mutual
+            \(k\)-NN graphs appeared more reliable than symmetric ones at first glance. However, this observation was
+            challenged
+            by later findings. What we realized only later too was, that some graphs were not connected, mainly when
+            using
+            the FPFH
+            descriptor.
+        </p>
+
+        <h3 id="nmi-ari">Normalized Mutual Information (NMI) and Adjusted Rand Index (ARI)</h3>
+        <p>
+            The clustering evaluation provided a lot of interesting information. It provided useful insights not only
+            when
+            it
+            comes to choosing the best descriptor, but also what type of \(k\)-NN graph is most reliable for our use
+            case.
+            First of all, we could see that unweighted graphs outperformed weighted ones in every single test case.
+        </p>
+        <figure class="embedded-3d-figure">
+            <div class="embedded-3d-figure-div">
+                <img class="embedded-3d-figure-img-split-2"
+                     src="figure/unweighted_symmetric_knn_nmi_ari_k5_polished.png"
+                     alt="unweighted symmetric KNN graph clustering performance">
+                <img class="embedded-3d-figure-img-split-2"
+                     src="figure/weighted_symmetric_knn_nmi_ari_k5_polished.png"
+                     alt="weighted symmetric KNN graph clustering performance">
+            </div>
+            <figcaption class="embedded-3d-figure-caption">
+                Figure 7: Example comparison between weighted and unweighted graphs
+            </figcaption>
+        </figure>
+        <p>
+            Another useful observation when it comes to deciding which type of graph is best, is that symmetric ones
+            mostly achieve better performance than mutual ones, though not in all cases. When it comes to the highest
+            achieved
+            performance across all test cases however, symmetric \(k\)-NN graphs prove to be the best choice.
+        </p>
+        <figure class="embedded-3d-figure">
+            <div class="embedded-3d-figure-div">
+                <img class="embedded-3d-figure-img-split-2"
+                     src="figure/unweighted_mutual_knn_nmi_ari_k15_polished.png"
+                     alt="unweighted mutual KNN graph clustering performance">
+                <img class="embedded-3d-figure-img-split-2"
+                     src="figure/unweighted_symmetric_knn_nmi_ari_k15_polished.png"
+                     alt="unweighted symmetric KNN graph clustering performance">
+            </div>
+            <figcaption class="embedded-3d-figure-caption">
+                Figure 8: Example comparison between mutual and symmetric graphs
+            </figcaption>
+        </figure>
+        <p>
+            Finally, the choice of \(k\) when computing the graph is also an important factor,
+            as too low and too high values led to poor results. When it comes to which descriptors most consistently
+            provided effective results
+            it is difficult to make a decision. Both the shell model, as well as EVARP seem to be good choices mostly,
+            however
+            all of them were sensible to the choice of \(k\)-NN graph hyperparameters.
+        </p>
+
+        <h3 id="ratio-normalized">Ratio and Normalized Cut</h3>
+        <p>
+            For further analysis, we examined Ratio and Normalized Cut metrics. Mutual graphs outperformed symmetric
+            ones in
+            these tests.
+        </p>
+        <figure class="embedded-3d-figure">
+            <div class="embedded-3d-figure-div">
+                <img class="embedded-3d-figure-img-split-2"
+                     src="figure/symmetric_ratio_normalized_cut_per_k.png"
+                     alt="symmetric KNN graph cut performance">
+                <img class="embedded-3d-figure-img-split-2"
+                     src="figure/mutual_ratio_normalized_cut_per_k.png"
+                     alt="mutual KNN graph clustering performance">
+            </div>
+            <figcaption class="embedded-3d-figure-caption">
+                Figure 9: Example comparison between mutual and symmetric graph cuts
+            </figcaption>
+        </figure>
+        <p>
+            To be fair, though, this comparison is unfair to make. Mutual graphs will have less connections by design.
+            Since these measures are highly sensitive to the number of edges, this comparison is biased towards mutual
+            graphs.
+        </p>
+        <figure class="embedded-3d-figure">
+            <div class="embedded-3d-figure-div">
+                <img class="embedded-3d-figure-img-split-2"
+                     src="figure/symmetric_ratio_normalized_cut_per_k.png"
+                     alt="symmetric KNN graph cut performance">
+                <img class="embedded-3d-figure-img-split-2"
+                     src="figure/symmetric_ratio_normalized_cut_per_k_rotated.png"
+                     alt="symmetric KNN graph clustering performance">
+            </div>
+            <figcaption class="embedded-3d-figure-caption">
+                Figure 10: Example comparison with rotated objects in the dataset
+            </figcaption>
+        </figure>
+        <p>
+            Descriptors, such as EVARP, the shell model, the sector model, and the combined model, stood out for their
+            effectiveness. Interestingly though, this observation shifted when we randomly rotated the objects in the
+            datasets. Here, the combined model and the sector model had much worse performance, while other
+            ones,
+            such as EVARP, the shell model, SIRM3D or SAMP3D were able to produce the same results as before. This
+            highly
+            indicates
+            that these models are rotation-invariant, which can be a desirable property in many use cases, such as
+            protein
+            clustering.
+        </p>
+        <figure class="embedded-3d-figure">
+            <div class="embedded-3d-figure-div">
+                <img class="embedded-3d-figure-img-no-split"
+                     src="figure/symmetric_ratio_normalized_cut_reduced_d.png"
+                     alt="symmetric KNN graph cut performance">
+            </div>
+            <figcaption class="embedded-3d-figure-caption">
+                Figure 11: Example comparison with reduced dimensionality
+            </figcaption>
+        </figure>
+        <p>
+            We could also show that most of the information is carried in just a very small subset of the dimensions.
+            The
+            results showed that Normalized and Ratio Cut values remained consistent when using two or more principal
+            components.
+        </p>
+
+        <h3 id="runtime">Runtime Performance</h3>
+        <figure class="embedded-3d-figure">
+            <div class="embedded-3d-figure-div">
+                <img class="embedded-3d-figure-img-no-split"
+                     src="figure/runtime_logy.png"
+                     alt="runtime plot">
+            </div>
+            <figcaption class="embedded-3d-figure-caption">
+                Figure 12: Runtime plot of the shape descriptors with logarithmic y-axis
+            </figcaption>
+        </figure>
+        <p>
+            When measuring computational efficiency, EVARP, the shell model, and the sector model were the most
+            efficient.
+            SAMP3D, SIRM3D, and the combined model performed slightly slower, while SCOMP3D and FPFH were the slowest
+            among
+            the tested descriptors.
+        </p>
+
+        <h3 id="enantiomer">Enantiomer Test (Mirroring)</h3>
+        <p>
+            Finally, we tested whether the descriptors could differentiate between mirrored data points. This property
+            is
+            of interest to us, since mirrored chemical compounds have very similar 3D shape, but potentially different
+            functionality.
+        </p>
+        <figure class="embedded-3d-figure">
+            <div class="embedded-3d-figure-div">
+                <img class="embedded-3d-figure-img-no-split"
+                     src="figure/evarp_predicted_vs_true_clustering_mirrored.png"
+                     alt="comparison plot between true labeling and predicted one on mirrored data">
+            </div>
+            <figcaption class="embedded-3d-figure-caption">
+                Figure 13: Comparison plot between true labeling and predicted one on mirrored data
+            </figcaption>
+        </figure>
+        <p>
+            Interestingly, none of the descriptors were able to differentiate these points. They were not only not able
+            to
+            do so,
+            but actually seemed completely mirror-invariant.
+        </p>
+        <figure class="embedded-3d-figure">
+            <div class="embedded-3d-figure-div">
+                <img class="embedded-3d-figure-img-no-split"
+                     src="figure/scatterplot_matrix_sirm_3d_true_labeling.png"
+                     alt="comparison plot between true labeling and predicted one on mirrored data">
+            </div>
+            <figcaption class="embedded-3d-figure-caption">
+                Figure 14: Descriptor values for two clusters that contain mirrored objects. More specifically, cluster
+                -7
+                is
+                mirrored across the
+                y-axis.
+            </figcaption>
+        </figure>
+        <p>
+            The descriptor values for both the true as well as mirrored data points had exactly the same values. If we
+            further look
+            into the descriptors it is easy to see that they actually are mirror-invariant.
+        </p>
+
+        <h2 id="conclusion">Conclusion</h2>
+
+        <p>
+            In this work, we set out to evaluate whether 3D shape descriptors can effectively cluster proteins and
+            determine
+            which descriptors perform best. In the process we have presented a workflow of how to evaluate these
+            questions
+            and also provided some thoughts about how to interpret the implications of the output.
+        </p>
+
+        <p>
+            We utilized protein tertiary structures as input and tested various descriptors, including EVARP, SAMP3D,
+            SCOMP3D, and SIRM3D, using \(k\)-Nearest Neighbor graphs and spectral clustering.
+        </p>
+
+        <p>
+            Our analysis highlighted that descriptors such as <strong>EVARP</strong> and the <strong>shell
+            model</strong>
+            consistently
+            exhibited
+            strong clustering performance, balancing precision and runtime efficiency. However, challenges were noted in
+            handling certain data characteristics and certain object geometries. For instance, all descriptors struggled
+            with mirrored
+            objects due to limitations in how they process structural features. In this category fall both EVARP and the
+            shell.
+            This is one promising open question with the potential for improvements.
+            model.
+        </p>
+    </section>
 </main>
 </body>
 </html>
